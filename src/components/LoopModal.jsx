@@ -95,7 +95,7 @@ export default function LoopModal({
               <h3 className="font-semibold text-base text-[#F1E9DD] flex items-center gap-2">
                 Autonomous Agent Loops
                 <span className="text-[10px] font-mono uppercase bg-[#FF8038]/20 text-[#FF8038] px-2 py-0.5 rounded-full border border-[#FF8038]/30">
-                  Symvibe Engine
+                  DeloSpace Engine
                 </span>
               </h3>
               <p className="text-xs text-[#8B7E72]">

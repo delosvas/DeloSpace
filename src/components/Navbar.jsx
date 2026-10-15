@@ -54,10 +54,10 @@ export default function Navbar({
         {/* Brand */}
         <div className="flex items-center gap-2.5 mr-2">
           <div className="w-6 h-6 rounded-md bg-[#FF8038] flex items-center justify-center text-white font-bold text-xs shadow-md shadow-[#FF8038]/20">
-            S
+            D
           </div>
           <span className="font-semibold text-sm tracking-tight text-[#F1E9DD]">
-            Symvibe
+            DeloSpace
           </span>
         </div>
 

@@ -1,8 +1,9 @@
 {
-  "name": "copyofideaapp",
+  "name": "delospace",
+  "productName": "DeloSpace",
   "version": "1.0.0",
   "type": "module",
-  "description": "",
+  "description": "DeloSpace · One Board for Your AI Agents",
   "main": "electron/main.js",
   "scripts": {
     "server": "node server/index.js",
@@ -12,7 +13,36 @@
     "start": "node server/index.js",
     "electron": "electron electron/main.js",
     "desktop": "concurrently -k \"npm run server\" \"electron electron/main.js\"",
+    "compile": "npm run build && electron-builder --mac --arm64 --dir",
+    "dist": "npm run build && electron-builder --mac --arm64",
     "postinstall": "chmod +x node_modules/node-pty/prebuilds/darwin-*/spawn-helper 2>/dev/null || true"
+  },
+  "build": {
+    "appId": "com.delospace.app",
+    "productName": "DeloSpace",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "server/**/*",
+      "electron/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "icon": "assets/icon.icns",
+      "category": "public.app-category.developer-tools",
+      "target": [
+        "dir",
+        "dmg"
+      ],
+      "identity": null
+    },
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/node-pty/**/*"
+    ]
   },
   "keywords": [],
   "author": "",
@@ -36,6 +66,7 @@
     "@vitejs/plugin-react": "^6.1.2",
     "concurrently": "^10.0.6",
     "electron": "^44.7.2",
+    "electron-builder": "^26.15.3",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "tailwindcss": "^4.3.3",

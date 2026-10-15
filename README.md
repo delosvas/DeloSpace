@@ -1,6 +1,6 @@
-# Symvibe · One Board for Your AI Agents
+# DeloSpace · One Board for Your AI Agents
 
-A 1-to-1 local-first implementation of **Symvibe**, bringing your AI coding agents together on one visual, infinite board. Run real terminals, organize agent teams, hand off task context, and orchestrate work on your Mac.
+A 1-to-1 local-first implementation of **DeloSpace**, bringing your AI coding agents together on one visual, infinite board. Run real terminals, organize agent teams, hand off task context, and orchestrate work on your Mac.
 
 ---
 
@@ -79,9 +79,20 @@ Or to run both server and desktop window in a single command:
 ```bash
 npm run desktop
 ```
-Opens Symvibe in a native macOS frameless dark window with inset traffic light controls.
+Opens DeloSpace in a native macOS frameless dark window with inset traffic light controls.
 
-### 3. Development Mode
+### 3. Compile Standalone macOS Application (`.app`)
+To build the standalone `.app` with the native **DeloSpace** icon:
+```bash
+npm run compile
+```
+Produces `release/mac-arm64/DeloSpace.app` which can be launched directly:
+```bash
+open release/mac-arm64/DeloSpace.app
+```
+Or moved into your `/Applications` folder.
+
+### 4. Development Mode
 ```bash
 npm run dev
 ```
