@@ -48,18 +48,9 @@ export default function Navbar({
   const activeWs = workspaces.find(w => w.id === activeWorkspaceId);
 
   return (
-    <header className="h-14 bg-[rgba(15,12,10,0.92)] border-b border-[rgba(241,233,221,0.09)] px-4 flex items-center justify-between z-30 select-none relative backdrop-blur-md">
-      {/* Brand & Workspaces */}
-      <div className="flex items-center gap-4">
-        {/* Brand */}
-        <div className="flex items-center gap-2.5 mr-2">
-          <div className="w-6 h-6 rounded-md bg-[#FF8038] flex items-center justify-center text-white font-bold text-xs shadow-md shadow-[#FF8038]/20">
-            D
-          </div>
-          <span className="font-semibold text-sm tracking-tight text-[#F1E9DD]">
-            DeloSpace
-          </span>
-        </div>
+    <header className="h-14 bg-[rgba(15,12,10,0.92)] border-b border-[rgba(241,233,221,0.09)] pl-20 pr-4 flex items-center justify-between z-30 select-none relative backdrop-blur-md">
+      {/* Workspaces */}
+      <div className="flex items-center gap-3">
 
         {/* Workspaces Tabs */}
         <div className="flex items-center gap-1 bg-[#14110E] p-1 rounded-xl border border-[rgba(241,233,221,0.06)]">
