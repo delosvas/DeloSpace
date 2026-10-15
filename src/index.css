@@ -1,0 +1,104 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #0A0908;
+  --bg2: #14110E;
+  --surface: #1F1A16;
+  --surface-hover: #29231E;
+  --ink: #F1E9DD;
+  --ink-soft: #CDC2B3;
+  --muted: #8B7E72;
+  --accent: #FF6B3D;
+  --btn: #FF8038;
+  --line: rgba(241, 233, 221, 0.10);
+  --rule: rgba(241, 233, 221, 0.07);
+  --spring: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+body {
+  font-family: 'Geist', system-ui, -apple-system, sans-serif;
+  color: var(--ink);
+  background-color: var(--bg);
+}
+
+.mono {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* Glass styling matching Symvibe specification */
+.sym-glass {
+  background: rgba(28, 23, 19, 0.72);
+  backdrop-filter: blur(24px) saturate(135%);
+  -webkit-backdrop-filter: blur(24px) saturate(135%);
+  border: 1px solid rgba(241, 233, 221, 0.11);
+  box-shadow: 
+    0 1px 0 rgba(255, 255, 255, 0.08) inset,
+    0 24px 60px -28px rgba(0, 0, 0, 0.95);
+}
+
+.sym-glass-subtle {
+  background: rgba(25, 21, 18, 0.6);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(241, 233, 221, 0.08);
+}
+
+.sym-btn-primary {
+  background: var(--btn);
+  color: #fff;
+  font-weight: 550;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 2px 8px -2px rgba(0, 0, 0, 0.6);
+  transition: all 0.2s var(--spring);
+}
+.sym-btn-primary:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+.sym-btn-primary:active {
+  transform: scale(0.98);
+}
+
+.sym-btn-ghost {
+  background: rgba(241, 233, 221, 0.05);
+  border: 1px solid rgba(241, 233, 221, 0.12);
+  color: var(--ink-soft);
+  transition: all 0.2s var(--spring);
+}
+.sym-btn-ghost:hover {
+  background: rgba(241, 233, 221, 0.10);
+  color: var(--ink);
+  border-color: rgba(241, 233, 221, 0.22);
+}
+
+/* Dot grid canvas background */
+.dot-grid {
+  background-image: radial-gradient(rgba(241, 233, 221, 0.12) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(241, 233, 221, 0.15);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(241, 233, 221, 0.3);
+}
+
+/* XTerm custom overrides */
+.xterm {
+  padding: 6px;
+  height: 100%;
+}
+.xterm-viewport {
+  background-color: transparent !important;
+}
+.xterm-screen {
+  padding-left: 2px;
+}
