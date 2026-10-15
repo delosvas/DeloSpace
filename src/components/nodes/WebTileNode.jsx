@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Globe, RotateCw, ExternalLink, Smartphone, Tablet, Monitor, X, Maximize2, Minimize2 } from 'lucide-react';
 
 export default function WebTileNode({ node, onUpdate, onClose, isMaximized, onToggleMaximize }) {
-  const [url, setUrl] = useState(node.data?.url || 'http://localhost:5173');
+  const [url, setUrl] = useState(node.data?.url || 'about:blank');
   const [inputUrl, setInputUrl] = useState(url);
   const [device, setDevice] = useState(node.data?.device || 'desktop'); // 'desktop' | 'tablet' | 'mobile'
   const [refreshKey, setRefreshKey] = useState(0);

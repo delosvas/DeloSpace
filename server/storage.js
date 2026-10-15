@@ -82,7 +82,7 @@ const defaultWorkspaces = [
         width: 640,
         height: 990,
         data: {
-          url: 'http://localhost:5173',
+          url: 'about:blank',
           device: 'desktop'
         }
       }

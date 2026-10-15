@@ -3,13 +3,22 @@ import os from 'os';
 import path from 'path';
 import fs from 'fs';
 
+const __dirname = path.dirname(new URL(import.meta.url).pathname);
+
 // Ensure spawn-helper permissions on macOS
 function ensureSpawnHelper() {
   if (process.platform === 'darwin') {
     const helperPaths = [
       path.join(process.cwd(), 'node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper'),
       path.join(process.cwd(), 'node_modules/node-pty/prebuilds/darwin-x64/spawn-helper'),
-      path.join(process.cwd(), 'node_modules/node-pty/build/Release/spawn-helper')
+      path.join(process.cwd(), 'node_modules/node-pty/build/Release/spawn-helper'),
+      path.join(__dirname, '../node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper'),
+      path.join(__dirname, '../node_modules/node-pty/prebuilds/darwin-x64/spawn-helper'),
+      ...(process.resourcesPath ? [
+        path.join(process.resourcesPath, 'app.asar.unpacked/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper'),
+        path.join(process.resourcesPath, 'app.asar.unpacked/node_modules/node-pty/prebuilds/darwin-x64/spawn-helper'),
+        path.join(process.resourcesPath, 'app.asar.unpacked/node_modules/node-pty/build/Release/spawn-helper')
+      ] : [])
     ];
     for (const hp of helperPaths) {
       if (fs.existsSync(hp)) {

@@ -61,10 +61,11 @@ export default function App() {
   };
 
   const handleAddWorkspace = () => {
+    const defaultCwd = activeWorkspace?.cwd || '';
     const newWs = {
       id: `ws-${Date.now()}`,
       name: `Board ${workspaces.length + 1}`,
-      cwd: process.cwd(),
+      cwd: defaultCwd,
       nodes: [
         {
           id: `term-${Date.now()}-1`,
@@ -72,7 +73,7 @@ export default function App() {
           title: 'Claude Code',
           agentType: 'claude',
           command: 'claude',
-          cwd: process.cwd(),
+          cwd: defaultCwd,
           profile: 'default',
           x: 60,
           y: 80,
@@ -86,7 +87,7 @@ export default function App() {
           title: 'OpenAI Codex',
           agentType: 'codex',
           command: 'codex',
-          cwd: process.cwd(),
+          cwd: defaultCwd,
           profile: 'default',
           x: 780,
           y: 80,
@@ -147,7 +148,7 @@ export default function App() {
       title: meta.title || `${type.charAt(0).toUpperCase() + type.slice(1)} Node`,
       agentType: meta.agentType || 'zsh',
       command: meta.command !== undefined ? meta.command : '',
-      cwd: activeWorkspace.cwd || process.cwd(),
+      cwd: activeWorkspace?.cwd || '',
       profile: 'default',
       x,
       y,
@@ -351,7 +352,7 @@ export default function App() {
       <CodeStudioModal
         isOpen={showCodeStudio}
         onClose={() => setShowCodeStudio(false)}
-        rootPath={activeWorkspace?.cwd || process.cwd()}
+        rootPath={activeWorkspace?.cwd || ''}
         onPinFile={(filePath, content) => {
           handleAddNode('code', {
             title: filePath.split('/').pop(),

@@ -32,25 +32,28 @@ async function ensureServerRunning() {
     return;
   }
 
-  console.log('[DeloSpace Electron] Launching embedded DeloSpace server...');
-  const serverPath = path.join(__dirname, '../server/index.js');
-  serverProcess = fork(serverPath, [], {
-    env: { ...process.env, PORT: SERVER_PORT.toString() },
-    stdio: 'inherit'
-  });
+  console.log('[DeloSpace Electron] Initializing DeloSpace backend server...');
+  try {
+    // Import server in-process for instant, zero-dependency startup
+    await import('../server/index.js');
+    console.log('[DeloSpace Electron] In-process server loaded successfully.');
+  } catch (err) {
+    console.warn('[DeloSpace Electron] In-process import fallback to fork:', err);
+    const serverPath = path.join(__dirname, '../server/index.js');
+    serverProcess = fork(serverPath, [], {
+      env: { ...process.env, PORT: SERVER_PORT.toString(), ELECTRON_RUN_AS_NODE: '1' },
+      stdio: 'inherit'
+    });
+  }
 
-  serverProcess.on('error', (err) => {
-    console.error('[DeloSpace Electron] Failed to start embedded server:', err);
-  });
-
-  // Wait up to 10 seconds for server to be ready
+  // Wait up to 10 seconds for server to be responsive
   const start = Date.now();
   while (Date.now() - start < 10000) {
     if (await isServerReady(SERVER_URL)) {
-      console.log('[DeloSpace Electron] Embedded backend server is live!');
+      console.log('[DeloSpace Electron] Backend server is live at', SERVER_URL);
       return;
     }
-    await new Promise((r) => setTimeout(r, 200));
+    await new Promise((r) => setTimeout(r, 150));
   }
 }
 
@@ -65,11 +68,12 @@ async function createWindow() {
     trafficLightPosition: { x: 16, y: 18 },
     title: 'DeloSpace · The AI Agent Board',
     icon: ICON_PATH,
+    show: false, // show only after ready-to-show to prevent white/black flash
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
-      webSecurity: false // allow localhost iframes for WebTile
+      webSecurity: false
     }
   });
 
@@ -85,8 +89,14 @@ async function createWindow() {
     return { action: 'deny' };
   });
 
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    if (!isMainFrame) return; // Ignore subframes/iframes (such as WebTile)
+    console.warn('[DeloSpace Electron] Main frame failed to load:', errorCode, errorDescription);
+  });
+
   await ensureServerRunning();
-  mainWindow.loadURL(SERVER_URL);
+  await mainWindow.loadURL(SERVER_URL);
+  mainWindow.show();
 
   mainWindow.on('closed', () => {
     mainWindow = null;
