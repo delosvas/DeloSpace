@@ -37,6 +37,7 @@ export default function Navbar({
   onToggleDrawing,
   onOpenCodeStudio,
   onOpenFolderSelector,
+  onCloseWorkspace,
   isDrawingActive = false,
   activeLoopsCount = 0,
   needsInputCount = 0,
@@ -59,17 +60,33 @@ export default function Navbar({
         {/* Workspaces Tabs */}
         <div className="flex items-center gap-1 bg-[#14110E] p-1 rounded-xl border border-[rgba(241,233,221,0.06)]">
           {workspaces.map(ws => (
-            <button
+            <div
               key={ws.id}
-              onClick={() => onSelectWorkspace(ws.id)}
-              className={`px-3 py-1 rounded-lg text-[12px] font-medium transition ${
+              className={`flex items-center rounded-lg text-[12px] font-medium transition group ${
                 ws.id === activeWorkspaceId
                   ? 'bg-[#1F1A16] text-[#F1E9DD] shadow-sm border border-[rgba(241,233,221,0.12)]'
                   : 'text-[#8B7E72] hover:text-[#CDC2B3]'
               }`}
             >
-              {ws.name}
-            </button>
+              <button
+                onClick={() => onSelectWorkspace(ws.id)}
+                className="px-2.5 py-1"
+              >
+                {ws.name}
+              </button>
+              {workspaces.length > 1 && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCloseWorkspace?.(ws.id);
+                  }}
+                  className="pr-1.5 pl-0.5 py-1 text-[#8B7E72] hover:text-rose-400 opacity-60 hover:opacity-100 transition"
+                  title={`Close ${ws.name}`}
+                >
+                  <X size={11} />
+                </button>
+              )}
+            </div>
           ))}
           <button
             onClick={onAddWorkspace}

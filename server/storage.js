@@ -2,13 +2,24 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
-const SYM_DIR = path.join(os.homedir(), '.symvibe');
-const DATA_FILE = path.join(SYM_DIR, 'workspaces.json');
-const MEMORY_FILE = path.join(SYM_DIR, 'memory.json');
+const DELO_DIR = path.join(os.homedir(), '.delospace');
+const OLD_DIR = path.join(os.homedir(), '.symvibe');
+const DATA_FILE = path.join(DELO_DIR, 'workspaces.json');
+const MEMORY_FILE = path.join(DELO_DIR, 'memory.json');
 
-// Ensure directory exists
-if (!fs.existsSync(SYM_DIR)) {
-  fs.mkdirSync(SYM_DIR, { recursive: true });
+// Ensure directory exists & migrate from old directory if present
+if (!fs.existsSync(DELO_DIR)) {
+  fs.mkdirSync(DELO_DIR, { recursive: true });
+}
+if (!fs.existsSync(DATA_FILE) && fs.existsSync(path.join(OLD_DIR, 'workspaces.json'))) {
+  try {
+    fs.copyFileSync(path.join(OLD_DIR, 'workspaces.json'), DATA_FILE);
+  } catch (_) {}
+}
+if (!fs.existsSync(MEMORY_FILE) && fs.existsSync(path.join(OLD_DIR, 'memory.json'))) {
+  try {
+    fs.copyFileSync(path.join(OLD_DIR, 'memory.json'), MEMORY_FILE);
+  } catch (_) {}
 }
 
 const defaultWorkspaces = [
@@ -111,7 +122,9 @@ export function loadWorkspaces() {
 
 export function saveWorkspaces(workspaces) {
   try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(workspaces, null, 2), 'utf-8');
+    const tempFile = `${DATA_FILE}.tmp.${Date.now()}`;
+    fs.writeFileSync(tempFile, JSON.stringify(workspaces, null, 2), 'utf-8');
+    fs.renameSync(tempFile, DATA_FILE);
     return true;
   } catch (err) {
     console.error('[Storage] Error saving workspaces:', err.message);

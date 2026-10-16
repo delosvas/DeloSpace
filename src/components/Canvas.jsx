@@ -14,7 +14,10 @@ import Minimap from './Minimap';
 
 export default function Canvas({
   workspace,
-  onUpdateWorkspace,
+  onCloseNode,
+  onUpdateNode,
+  onUpdateCanvas,
+  onUpdateStrokes,
   onHandoff,
   focusedNodeId,
   onClearFocus,
@@ -37,12 +40,9 @@ export default function Canvas({
 
   const [maximizedNodeId, setMaximizedNodeId] = useState(null);
 
-  // Sync canvas state back to workspace
+  // Sync canvas pan/zoom back to workspace canvas property ONLY (never touches nodes!)
   useEffect(() => {
-    onUpdateWorkspace({
-      ...workspace,
-      canvas: { panX, panY, zoom }
-    });
+    onUpdateCanvas?.({ panX, panY, zoom });
   }, [panX, panY, zoom]);
 
   // Handle focus jumping from Mission Map
@@ -99,21 +99,20 @@ export default function Canvas({
       const newX = (e.clientX - panX) / zoom - dragOffset.x;
       const newY = (e.clientY - panY) / zoom - dragOffset.y;
 
-      const updatedNodes = workspace.nodes.map(n => 
-        n.id === draggingNodeId ? { ...n, x: Math.round(newX), y: Math.round(newY) } : n
-      );
-      onUpdateWorkspace({ ...workspace, nodes: updatedNodes });
+      const node = workspace.nodes.find(n => n.id === draggingNodeId);
+      if (node) {
+        onUpdateNode?.({ ...node, x: Math.round(newX), y: Math.round(newY) });
+      }
     } else if (resizingNodeId) {
       const deltaX = (e.clientX - resizeStart.mouseX) / zoom;
       const deltaY = (e.clientY - resizeStart.mouseY) / zoom;
 
-      const newW = Math.max(380, resizeStart.w + deltaX);
-      const newH = Math.max(260, resizeStart.h + deltaY);
-
-      const updatedNodes = workspace.nodes.map(n => 
-        n.id === resizingNodeId ? { ...n, width: Math.round(newW), height: Math.round(newH) } : n
-      );
-      onUpdateWorkspace({ ...workspace, nodes: updatedNodes });
+      const node = workspace.nodes.find(n => n.id === resizingNodeId);
+      if (node) {
+        const newW = Math.max(380, resizeStart.w + deltaX);
+        const newH = Math.max(260, resizeStart.h + deltaY);
+        onUpdateNode?.({ ...node, width: Math.round(newW), height: Math.round(newH) });
+      }
     }
   };
 
@@ -155,13 +154,11 @@ export default function Canvas({
 
   // Node controls
   const handleUpdateNode = (updatedNode) => {
-    const updated = workspace.nodes.map(n => n.id === updatedNode.id ? updatedNode : n);
-    onUpdateWorkspace({ ...workspace, nodes: updated });
+    onUpdateNode?.(updatedNode);
   };
 
   const handleCloseNode = (nodeId) => {
-    const updated = workspace.nodes.filter(n => n.id !== nodeId);
-    onUpdateWorkspace({ ...workspace, nodes: updated });
+    onCloseNode?.(nodeId);
   };
 
   const handleFitAll = () => {
@@ -309,7 +306,7 @@ export default function Canvas({
         onClose={onCloseDrawing}
         strokes={workspace.strokes || []}
         onUpdateStrokes={(newStrokes) => {
-          onUpdateWorkspace({ ...workspace, strokes: newStrokes });
+          onUpdateStrokes?.(newStrokes);
         }}
         zoom={zoom}
         panX={panX}

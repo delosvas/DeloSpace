@@ -9,7 +9,7 @@ import HandoffModal from './components/HandoffModal';
 import LoopModal from './components/LoopModal';
 import CodeStudioModal from './components/CodeStudioModal';
 import FolderSelectModal from './components/FolderSelectModal';
-import { fetchWorkspaces, saveWorkspaces, fetchAgents, broadcastInput } from './services/api';
+import { fetchWorkspaces, saveWorkspaces, fetchAgents, broadcastInput, killTerminal } from './services/api';
 
 export default function App() {
   const [workspaces, setWorkspaces] = useState([]);
@@ -51,15 +51,115 @@ export default function App() {
 
   const activeWorkspace = workspaces.find(w => w.id === activeWorkspaceId);
 
-  // Auto-save debouncer
+  // Auto-save debouncer for whole workspace updates
   const handleUpdateActiveWorkspace = (updatedWs) => {
-    const updatedList = workspaces.map(w => w.id === updatedWs.id ? updatedWs : w);
-    setWorkspaces(updatedList);
+    setWorkspaces(prev => {
+      const updatedList = prev.map(w => w.id === updatedWs.id ? updatedWs : w);
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(() => {
+        saveWorkspaces(updatedList);
+      }, 1500);
+      return updatedList;
+    });
+  };
+
+  // Close/delete a node permanently and immediately persist
+  const handleCloseNode = (nodeId) => {
+    // Terminate native PTY session
+    killTerminal(nodeId).catch(() => {});
+
+    setWorkspaces(prev => {
+      const updated = prev.map(w => {
+        if (w.id === activeWorkspaceId) {
+          return {
+            ...w,
+            nodes: w.nodes.filter(n => n.id !== nodeId)
+          };
+        }
+        return w;
+      });
+
+      // Immediate save to disk - zero delay, prevents resurrection
+      clearTimeout(saveTimerRef.current);
+      saveWorkspaces(updated);
+      return updated;
+    });
+  };
+
+  // Update a single node without touching other nodes
+  const handleUpdateNode = (updatedNode) => {
+    setWorkspaces(prev => {
+      const updated = prev.map(w => {
+        if (w.id === activeWorkspaceId) {
+          return {
+            ...w,
+            nodes: w.nodes.map(n => n.id === updatedNode.id ? updatedNode : n)
+          };
+        }
+        return w;
+      });
+      return updated;
+    });
 
     clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
-      saveWorkspaces(updatedList);
+      setWorkspaces(latest => {
+        saveWorkspaces(latest);
+        return latest;
+      });
     }, 1500);
+  };
+
+  // Update ONLY canvas pan/zoom - NEVER overrides or resurrects nodes
+  const handleUpdateCanvas = ({ panX, panY, zoom }) => {
+    setWorkspaces(prev => prev.map(w => {
+      if (w.id === activeWorkspaceId) {
+        return {
+          ...w,
+          canvas: { panX, panY, zoom }
+        };
+      }
+      return w;
+    }));
+
+    clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      setWorkspaces(latest => {
+        saveWorkspaces(latest);
+        return latest;
+      });
+    }, 1000);
+  };
+
+  // Update freehand drawings/strokes
+  const handleUpdateStrokes = (strokes) => {
+    setWorkspaces(prev => {
+      const updated = prev.map(w => {
+        if (w.id === activeWorkspaceId) {
+          return { ...w, strokes };
+        }
+        return w;
+      });
+      clearTimeout(saveTimerRef.current);
+      saveWorkspaces(updated);
+      return updated;
+    });
+  };
+
+  // Close workspace board tab
+  const handleCloseWorkspace = (wsId) => {
+    if (workspaces.length <= 1) return;
+    if (window.confirm('Close this board tab?')) {
+      setWorkspaces(prev => {
+        const remaining = prev.filter(w => w.id !== wsId);
+        if (activeWorkspaceId === wsId && remaining.length > 0) {
+          setActiveWorkspaceId(remaining[0].id);
+        }
+        clearTimeout(saveTimerRef.current);
+        saveWorkspaces(remaining);
+        return remaining;
+      });
+    }
   };
 
   const handleAddWorkspace = () => {
@@ -304,6 +404,7 @@ export default function App() {
         onToggleDrawing={() => setIsDrawingActive(!isDrawingActive)}
         onOpenCodeStudio={() => setShowCodeStudio(true)}
         onOpenFolderSelector={() => setShowFolderSelector(true)}
+        onCloseWorkspace={handleCloseWorkspace}
         isDrawingActive={isDrawingActive}
         activeLoopsCount={activeLoops.length}
         needsInputCount={needsInputCount}
@@ -314,8 +415,12 @@ export default function App() {
       <main className="flex-1 relative overflow-hidden">
         {activeWorkspace ? (
           <Canvas 
+            key={activeWorkspace.id}
             workspace={activeWorkspace}
-            onUpdateWorkspace={handleUpdateActiveWorkspace}
+            onCloseNode={handleCloseNode}
+            onUpdateNode={handleUpdateNode}
+            onUpdateCanvas={handleUpdateCanvas}
+            onUpdateStrokes={handleUpdateStrokes}
             onHandoff={(sourceNode) => setHandoffSourceNode(sourceNode)}
             focusedNodeId={focusedNodeId}
             onClearFocus={() => setFocusedNodeId(null)}
