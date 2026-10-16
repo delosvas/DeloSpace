@@ -49,7 +49,10 @@ export default function Navbar({
   const activeWs = workspaces.find(w => w.id === activeWorkspaceId);
 
   return (
-    <header className="h-14 bg-[rgba(15,12,10,0.92)] border-b border-[rgba(241,233,221,0.09)] pl-20 pr-4 flex items-center justify-between z-30 select-none relative backdrop-blur-md">
+    <header 
+      className="h-14 bg-[rgba(15,12,10,0.92)] border-b border-[rgba(241,233,221,0.09)] pl-20 pr-4 flex items-center justify-between z-30 select-none relative backdrop-blur-md window-drag-region"
+      style={{ WebkitAppRegion: 'drag' }}
+    >
       {/* Workspaces */}
       <div className="flex items-center gap-3">
 
@@ -107,7 +110,7 @@ export default function Navbar({
           </button>
 
           {showAddMenu && (
-            <div className="absolute top-full mt-1.5 left-0 w-64 sym-glass rounded-xl p-1.5 border border-[rgba(241,233,221,0.14)] shadow-2xl z-50">
+            <div className="absolute top-full mt-1.5 left-0 w-64 sym-glass rounded-xl p-1.5 border border-[rgba(241,233,221,0.14)] shadow-2xl z-50 window-no-drag">
               <div className="px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider text-[#8B7E72]">
                 Agent Terminals (Native macOS PTY)
               </div>
@@ -206,7 +209,7 @@ export default function Navbar({
           </button>
 
           {showStudiosMenu && (
-            <div className="absolute top-full mt-1.5 left-0 w-64 sym-glass rounded-xl p-1.5 border border-[rgba(241,233,221,0.14)] shadow-2xl z-50">
+            <div className="absolute top-full mt-1.5 left-0 w-64 sym-glass rounded-xl p-1.5 border border-[rgba(241,233,221,0.14)] shadow-2xl z-50 window-no-drag">
               <div className="px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider text-[#8B7E72]">
                 4 Native Studios
               </div>
@@ -279,7 +282,7 @@ export default function Navbar({
           </button>
 
           {showPresetMenu && (
-            <div className="absolute top-full mt-1.5 right-0 w-48 sym-glass rounded-xl p-1.5 border border-[rgba(241,233,221,0.14)] shadow-2xl z-50">
+            <div className="absolute top-full mt-1.5 right-0 w-48 sym-glass rounded-xl p-1.5 border border-[rgba(241,233,221,0.14)] shadow-2xl z-50 window-no-drag">
               <button
                 onClick={() => { onApplyLayoutPreset('side-by-side'); setShowPresetMenu(false); }}
                 className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-[#1F1A16] text-[12px] text-[#F1E9DD]"

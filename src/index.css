@@ -25,6 +25,22 @@ body {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
 }
 
+/* macOS Native Window Dragging Region */
+.window-drag-region {
+  -webkit-app-region: drag;
+}
+
+.window-no-drag,
+.window-drag-region button,
+.window-drag-region a,
+.window-drag-region input,
+.window-drag-region select,
+.window-drag-region textarea,
+.window-drag-region [role="button"],
+.window-drag-region .window-no-drag {
+  -webkit-app-region: no-drag;
+}
+
 /* Glass styling matching Symvibe specification */
 .sym-glass {
   background: rgba(28, 23, 19, 0.72);

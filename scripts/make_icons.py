@@ -3,7 +3,7 @@ import subprocess
 from PIL import Image, ImageDraw
 
 def create_mac_icon():
-    raw_path = 'assets/icon_raw.jpg'
+    raw_path = 'assets/icon_raw.png'
     png_path = 'assets/icon.png'
     iconset_dir = 'assets/icon.iconset'
     icns_path = 'assets/icon.icns'
@@ -11,30 +11,37 @@ def create_mac_icon():
     os.makedirs('assets', exist_ok=True)
     os.makedirs(iconset_dir, exist_ok=True)
 
-    img = Image.open(raw_path).convert('RGBA')
+    src = Image.open(raw_path).convert('RGBA')
     size = 1024
-    img = img.resize((size, size), Image.Resampling.LANCZOS)
 
-    # Super-sampled antialiased squircle mask (scale x4 for pristine edges)
+    # 4x super-sampled squircle mask
     scale = 4
-    mask_size = size * scale
-    mask = Image.new('L', (mask_size, mask_size), 0)
+    msize = size * scale
+    mask = Image.new('L', (msize, msize), 0)
     draw = ImageDraw.Draw(mask)
 
-    # Standard macOS Big Sur icon proportion: 824px squircle inside 1024px canvas, or full frame with 224px radius
-    radius = int(224 * scale)
-    margin = int(40 * scale) # macOS Dock icons have ~40px margin around squircle
-    draw.rounded_rectangle(
-        [margin, margin, mask_size - margin, mask_size - margin],
-        radius=radius,
-        fill=255
-    )
+    # Standard macOS Big Sur icon proportion: ~824px squircle inside 1024px canvas
+    margin = int(50 * scale)
+    radius = int(210 * scale)
+    rect = [margin, margin, msize - margin, msize - margin]
+    draw.rounded_rectangle(rect, radius=radius, fill=255)
+
+    # Subtle inner border for crisp edge
+    border_mask = Image.new('L', (msize, msize), 0)
+    bdraw = ImageDraw.Draw(border_mask)
+    bdraw.rounded_rectangle(rect, radius=radius, outline=255, width=int(2 * scale))
 
     mask = mask.resize((size, size), Image.Resampling.LANCZOS)
+    border_mask = border_mask.resize((size, size), Image.Resampling.LANCZOS)
 
-    # Composite onto transparent background
+    # Output canvas with transparency
     output = Image.new('RGBA', (size, size), (0, 0, 0, 0))
-    output.paste(img, (0, 0), mask=mask)
+    output.paste(src, (0, 0), mask=mask)
+
+    # Add subtle border
+    border_layer = Image.new('RGBA', (size, size), (255, 128, 56, 40))
+    output.paste(border_layer, (0, 0), mask=border_mask)
+
     output.save(png_path, 'PNG')
     print(f"Saved {png_path}")
 

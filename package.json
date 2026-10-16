@@ -14,7 +14,7 @@
     "electron": "electron electron/main.js",
     "desktop": "concurrently -k \"npm run server\" \"electron electron/main.js\"",
     "compile": "npm run build && electron-builder --mac --arm64 --dir",
-    "install-mac": "npm run compile && cp -R release/mac-arm64/DeloSpace.app /Applications/ && /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f /Applications/DeloSpace.app",
+    "install-mac": "npm run compile && rm -rf /Applications/DeloSpace.app && cp -R release/mac-arm64/DeloSpace.app /Applications/ && /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -u release/mac-arm64/DeloSpace.app 2>/dev/null || true && rm -rf release/mac-arm64 && /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f /Applications/DeloSpace.app",
     "dist": "npm run build && electron-builder --mac --arm64",
     "postinstall": "chmod +x node_modules/node-pty/prebuilds/darwin-*/spawn-helper 2>/dev/null || true"
   },
