@@ -34,11 +34,26 @@ export default function App() {
   const loopTimersRef = useRef({});
 
   const saveTimerRef = useRef(null);
+  const workspacesRef = useRef(workspaces);
+
+  useEffect(() => {
+    workspacesRef.current = workspaces;
+  }, [workspaces]);
+
+  const scheduleSave = (delay = 1000) => {
+    clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      if (workspacesRef.current && workspacesRef.current.length > 0) {
+        saveWorkspaces(workspacesRef.current);
+      }
+    }, delay);
+  };
 
   // Initial load
   useEffect(() => {
     fetchWorkspaces().then(wsList => {
       setWorkspaces(wsList);
+      workspacesRef.current = wsList;
       if (wsList.length > 0) {
         setActiveWorkspaceId(wsList[0].id);
       }
@@ -50,18 +65,6 @@ export default function App() {
   }, []);
 
   const activeWorkspace = workspaces.find(w => w.id === activeWorkspaceId);
-
-  // Auto-save debouncer for whole workspace updates
-  const handleUpdateActiveWorkspace = (updatedWs) => {
-    setWorkspaces(prev => {
-      const updatedList = prev.map(w => w.id === updatedWs.id ? updatedWs : w);
-      clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = setTimeout(() => {
-        saveWorkspaces(updatedList);
-      }, 1500);
-      return updatedList;
-    });
-  };
 
   // Close/delete a node permanently and immediately persist
   const handleCloseNode = (nodeId) => {
@@ -79,56 +82,67 @@ export default function App() {
         return w;
       });
 
-      // Immediate save to disk - zero delay, prevents resurrection
+      workspacesRef.current = updated;
       clearTimeout(saveTimerRef.current);
       saveWorkspaces(updated);
       return updated;
     });
   };
 
-  // Update a single node without touching other nodes
-  const handleUpdateNode = (updatedNode) => {
+  // Update a single node while strictly preserving geometry (x, y, width, height)
+  // unless explicitly provided by the canvas drag/resize handlers
+  const handleUpdateNode = (nodeUpdate) => {
+    if (!nodeUpdate || !nodeUpdate.id) return;
+
     setWorkspaces(prev => {
       const updated = prev.map(w => {
         if (w.id === activeWorkspaceId) {
           return {
             ...w,
-            nodes: w.nodes.map(n => n.id === updatedNode.id ? updatedNode : n)
+            nodes: w.nodes.map(n => {
+              if (n.id === nodeUpdate.id) {
+                return {
+                  ...n,
+                  ...nodeUpdate,
+                  // Retain current canvas geometry unless explicitly given in nodeUpdate
+                  x: nodeUpdate.x !== undefined ? nodeUpdate.x : n.x,
+                  y: nodeUpdate.y !== undefined ? nodeUpdate.y : n.y,
+                  width: nodeUpdate.width !== undefined ? nodeUpdate.width : n.width,
+                  height: nodeUpdate.height !== undefined ? nodeUpdate.height : n.height
+                };
+              }
+              return n;
+            })
           };
         }
         return w;
       });
+
+      workspacesRef.current = updated;
       return updated;
     });
 
-    clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
-      setWorkspaces(latest => {
-        saveWorkspaces(latest);
-        return latest;
-      });
-    }, 1500);
+    scheduleSave(1000);
   };
 
   // Update ONLY canvas pan/zoom - NEVER overrides or resurrects nodes
   const handleUpdateCanvas = ({ panX, panY, zoom }) => {
-    setWorkspaces(prev => prev.map(w => {
-      if (w.id === activeWorkspaceId) {
-        return {
-          ...w,
-          canvas: { panX, panY, zoom }
-        };
-      }
-      return w;
-    }));
-
-    clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
-      setWorkspaces(latest => {
-        saveWorkspaces(latest);
-        return latest;
+    setWorkspaces(prev => {
+      const updated = prev.map(w => {
+        if (w.id === activeWorkspaceId) {
+          return {
+            ...w,
+            canvas: { panX, panY, zoom }
+          };
+        }
+        return w;
       });
-    }, 1000);
+
+      workspacesRef.current = updated;
+      return updated;
+    });
+
+    scheduleSave(1000);
   };
 
   // Update freehand drawings/strokes
@@ -140,6 +154,7 @@ export default function App() {
         }
         return w;
       });
+      workspacesRef.current = updated;
       clearTimeout(saveTimerRef.current);
       saveWorkspaces(updated);
       return updated;
@@ -202,10 +217,14 @@ export default function App() {
       strokes: []
     };
 
-    const updated = [...workspaces, newWs];
-    setWorkspaces(updated);
+    setWorkspaces(prev => {
+      const updated = [...prev, newWs];
+      workspacesRef.current = updated;
+      clearTimeout(saveTimerRef.current);
+      saveWorkspaces(updated);
+      return updated;
+    });
     setActiveWorkspaceId(newWs.id);
-    saveWorkspaces(updated);
   };
 
   const handleAddNode = (type, meta = {}) => {
@@ -260,59 +279,82 @@ export default function App() {
       data: meta.data || {}
     };
 
-    handleUpdateActiveWorkspace({
-      ...activeWorkspace,
-      nodes: [...activeWorkspace.nodes, newNode]
+    setWorkspaces(prev => {
+      const updated = prev.map(w => {
+        if (w.id === activeWorkspaceId) {
+          return {
+            ...w,
+            nodes: [...w.nodes, newNode]
+          };
+        }
+        return w;
+      });
+      workspacesRef.current = updated;
+      clearTimeout(saveTimerRef.current);
+      saveWorkspaces(updated);
+      return updated;
     });
   };
 
   const handleApplyLayoutPreset = (preset) => {
-    if (!activeWorkspace || activeWorkspace.nodes.length === 0) return;
+    setWorkspaces(prev => {
+      const targetWs = prev.find(w => w.id === activeWorkspaceId);
+      if (!targetWs || targetWs.nodes.length === 0) return prev;
 
-    const nodes = [...activeWorkspace.nodes];
-    const cardW = 680;
-    const cardH = 500;
-    const gap = 30;
+      const nodes = targetWs.nodes.map(n => ({ ...n }));
+      const cardW = 680;
+      const cardH = 500;
+      const gap = 30;
 
-    if (preset === 'side-by-side') {
-      nodes.forEach((n, idx) => {
-        n.x = 60 + idx * (cardW + gap);
-        n.y = 80;
-        n.width = cardW;
-        n.height = cardH;
-      });
-    } else if (preset === 'grid-2x2') {
-      nodes.forEach((n, idx) => {
-        const col = idx % 2;
-        const row = Math.floor(idx / 2);
-        n.x = 60 + col * (cardW + gap);
-        n.y = 80 + row * (cardH + gap);
-        n.width = cardW;
-        n.height = cardH;
-      });
-    } else if (preset === 'pipeline') {
-      nodes.forEach((n, idx) => {
-        n.x = 60 + idx * (cardW + gap);
-        n.y = 100;
-        n.width = cardW;
-        n.height = cardH;
-      });
-    } else if (preset === 'fleet') {
-      const perRow = 3;
-      nodes.forEach((n, idx) => {
-        const col = idx % perRow;
-        const row = Math.floor(idx / perRow);
-        n.x = 60 + col * (cardW + gap);
-        n.y = 80 + row * (cardH + gap);
-        n.width = cardW;
-        n.height = cardH;
-      });
-    }
+      if (preset === 'side-by-side') {
+        nodes.forEach((n, idx) => {
+          n.x = 60 + idx * (cardW + gap);
+          n.y = 80;
+          n.width = cardW;
+          n.height = cardH;
+        });
+      } else if (preset === 'grid-2x2') {
+        nodes.forEach((n, idx) => {
+          const col = idx % 2;
+          const row = Math.floor(idx / 2);
+          n.x = 60 + col * (cardW + gap);
+          n.y = 80 + row * (cardH + gap);
+          n.width = cardW;
+          n.height = cardH;
+        });
+      } else if (preset === 'pipeline') {
+        nodes.forEach((n, idx) => {
+          n.x = 60 + idx * (cardW + gap);
+          n.y = 100;
+          n.width = cardW;
+          n.height = cardH;
+        });
+      } else if (preset === 'fleet') {
+        const perRow = 3;
+        nodes.forEach((n, idx) => {
+          const col = idx % perRow;
+          const row = Math.floor(idx / perRow);
+          n.x = 60 + col * (cardW + gap);
+          n.y = 80 + row * (cardH + gap);
+          n.width = cardW;
+          n.height = cardH;
+        });
+      }
 
-    handleUpdateActiveWorkspace({
-      ...activeWorkspace,
-      nodes,
-      canvas: { panX: 40, panY: 40, zoom: 0.8 }
+      const updated = prev.map(w => {
+        if (w.id === activeWorkspaceId) {
+          return {
+            ...w,
+            nodes,
+            canvas: { panX: 40, panY: 40, zoom: 0.8 }
+          };
+        }
+        return w;
+      });
+      workspacesRef.current = updated;
+      clearTimeout(saveTimerRef.current);
+      saveWorkspaces(updated);
+      return updated;
     });
   };
 
@@ -356,23 +398,28 @@ export default function App() {
   };
 
   const handleSelectWorkspaceCwd = (newCwd, switchTerminals = true) => {
-    if (!activeWorkspace) return;
-
-    // Update workspace cwd and node cwd values
-    const updatedNodes = activeWorkspace.nodes.map(node => {
-      if (node.type === 'terminal' || node.type === 'git') {
-        return { ...node, cwd: newCwd };
-      }
-      return node;
+    setWorkspaces(prev => {
+      const updated = prev.map(w => {
+        if (w.id === activeWorkspaceId) {
+          const updatedNodes = w.nodes.map(node => {
+            if (node.type === 'terminal' || node.type === 'git') {
+              return { ...node, cwd: newCwd };
+            }
+            return node;
+          });
+          return {
+            ...w,
+            cwd: newCwd,
+            nodes: updatedNodes
+          };
+        }
+        return w;
+      });
+      workspacesRef.current = updated;
+      clearTimeout(saveTimerRef.current);
+      saveWorkspaces(updated);
+      return updated;
     });
-
-    const updatedWorkspace = {
-      ...activeWorkspace,
-      cwd: newCwd,
-      nodes: updatedNodes
-    };
-
-    handleUpdateActiveWorkspace(updatedWorkspace);
 
     // If requested, change directory in active terminal sessions
     if (switchTerminals) {

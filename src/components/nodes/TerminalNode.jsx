@@ -125,7 +125,7 @@ export default function TerminalNode({
             term.write(msg.data);
           } else if (msg.type === 'status') {
             setStatus(msg.status);
-            onUpdate({ ...node, status: msg.status });
+            onUpdate?.({ id: node.id, status: msg.status });
           }
         } catch {
           term.write(event.data);

@@ -99,20 +99,22 @@ export default function Canvas({
       const newX = (e.clientX - panX) / zoom - dragOffset.x;
       const newY = (e.clientY - panY) / zoom - dragOffset.y;
 
-      const node = workspace.nodes.find(n => n.id === draggingNodeId);
-      if (node) {
-        onUpdateNode?.({ ...node, x: Math.round(newX), y: Math.round(newY) });
-      }
+      onUpdateNode?.({
+        id: draggingNodeId,
+        x: Math.round(newX),
+        y: Math.round(newY)
+      });
     } else if (resizingNodeId) {
       const deltaX = (e.clientX - resizeStart.mouseX) / zoom;
       const deltaY = (e.clientY - resizeStart.mouseY) / zoom;
 
-      const node = workspace.nodes.find(n => n.id === resizingNodeId);
-      if (node) {
-        const newW = Math.max(380, resizeStart.w + deltaX);
-        const newH = Math.max(260, resizeStart.h + deltaY);
-        onUpdateNode?.({ ...node, width: Math.round(newW), height: Math.round(newH) });
-      }
+      const newW = Math.max(380, resizeStart.w + deltaX);
+      const newH = Math.max(260, resizeStart.h + deltaY);
+      onUpdateNode?.({
+        id: resizingNodeId,
+        width: Math.round(newW),
+        height: Math.round(newH)
+      });
     }
   };
 
@@ -152,9 +154,12 @@ export default function Canvas({
     });
   };
 
-  // Node controls
-  const handleUpdateNode = (updatedNode) => {
-    onUpdateNode?.(updatedNode);
+  // Shield child node updates: child components (Terminal, Notes, Kanban, etc.)
+  // only update their internal data/status and MUST NEVER overwrite their canvas coordinates!
+  const handleChildNodeUpdate = (childUpdate) => {
+    if (!childUpdate || !childUpdate.id) return;
+    const { x, y, width, height, ...safeUpdate } = childUpdate;
+    onUpdateNode?.(safeUpdate);
   };
 
   const handleCloseNode = (nodeId) => {
@@ -195,7 +200,7 @@ export default function Canvas({
         return (
           <TerminalNode 
             node={node}
-            onUpdate={handleUpdateNode}
+            onUpdate={handleChildNodeUpdate}
             onClose={handleCloseNode}
             onHandoff={onHandoff}
             isMaximized={isMax}
@@ -206,7 +211,7 @@ export default function Canvas({
         return (
           <WebTileNode 
             node={node}
-            onUpdate={handleUpdateNode}
+            onUpdate={handleChildNodeUpdate}
             onClose={handleCloseNode}
             isMaximized={isMax}
             onToggleMaximize={() => setMaximizedNodeId(isMax ? null : node.id)}
@@ -216,7 +221,7 @@ export default function Canvas({
         return (
           <KanbanNode 
             node={node}
-            onUpdate={handleUpdateNode}
+            onUpdate={handleChildNodeUpdate}
             onClose={handleCloseNode}
             isMaximized={isMax}
             onToggleMaximize={() => setMaximizedNodeId(isMax ? null : node.id)}
@@ -226,7 +231,7 @@ export default function Canvas({
         return (
           <NotesNode 
             node={node}
-            onUpdate={handleUpdateNode}
+            onUpdate={handleChildNodeUpdate}
             onClose={handleCloseNode}
             isMaximized={isMax}
             onToggleMaximize={() => setMaximizedNodeId(isMax ? null : node.id)}
@@ -245,7 +250,7 @@ export default function Canvas({
         return (
           <CodeNode 
             node={node}
-            onUpdate={handleUpdateNode}
+            onUpdate={handleChildNodeUpdate}
             onClose={handleCloseNode}
             isMaximized={isMax}
             onToggleMaximize={() => setMaximizedNodeId(isMax ? null : node.id)}
@@ -255,7 +260,7 @@ export default function Canvas({
         return (
           <DiagramNode 
             node={node}
-            onUpdate={handleUpdateNode}
+            onUpdate={handleChildNodeUpdate}
             onClose={handleCloseNode}
             isMaximized={isMax}
             onToggleMaximize={() => setMaximizedNodeId(isMax ? null : node.id)}
@@ -265,7 +270,7 @@ export default function Canvas({
         return (
           <DocumentNode 
             node={node}
-            onUpdate={handleUpdateNode}
+            onUpdate={handleChildNodeUpdate}
             onClose={handleCloseNode}
             isMaximized={isMax}
             onToggleMaximize={() => setMaximizedNodeId(isMax ? null : node.id)}
@@ -275,7 +280,7 @@ export default function Canvas({
         return (
           <MarkdownVaultNode 
             node={node}
-            onUpdate={handleUpdateNode}
+            onUpdate={handleChildNodeUpdate}
             onClose={handleCloseNode}
             isMaximized={isMax}
             onToggleMaximize={() => setMaximizedNodeId(isMax ? null : node.id)}
