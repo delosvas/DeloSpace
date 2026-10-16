@@ -36,6 +36,7 @@ export default function Navbar({
   onOpenLoops,
   onToggleDrawing,
   onOpenCodeStudio,
+  onOpenFolderSelector,
   isDrawingActive = false,
   activeLoopsCount = 0,
   needsInputCount = 0,
@@ -76,11 +77,16 @@ export default function Navbar({
           </button>
         </div>
 
-        {/* Current Repo Indicator */}
-        <div className="hidden xl:flex items-center gap-1.5 text-[11px] font-mono text-[#8B7E72] px-2 py-0.5 rounded bg-[#14110E] border border-[rgba(241,233,221,0.04)] max-w-[240px] truncate" title={activeWs?.cwd}>
-          <FolderOpen size={12} className="text-[#FF8038] flex-none" />
-          <span className="truncate">{activeWs?.cwd?.split('/').slice(-2).join('/') || 'workspace'}</span>
-        </div>
+        {/* Clickable Current Working Directory Pill */}
+        <button
+          onClick={onOpenFolderSelector}
+          className="flex items-center gap-1.5 text-[11px] font-mono text-[#CDC2B3] hover:text-[#F1E9DD] px-2.5 py-1 rounded-lg bg-[#14110E] hover:bg-[#1F1A16] border border-[rgba(241,233,221,0.06)] hover:border-[#FF8038]/40 transition group cursor-pointer max-w-[280px] shadow-sm"
+          title={`Click to change project folder across computer\nCurrent path: ${activeWs?.cwd || '(none)'}`}
+        >
+          <FolderOpen size={12} className="text-[#FF8038] flex-none group-hover:scale-110 transition-transform" />
+          <span className="truncate font-medium">{activeWs?.cwd?.split('/').slice(-2).join('/') || 'Select Folder…'}</span>
+          <ChevronDown size={10} className="text-[#8B7E72] flex-none group-hover:text-[#FF8038] transition ml-0.5" />
+        </button>
       </div>
 
       {/* Center / Action Toolbar */}

@@ -34,12 +34,32 @@ export default function InkLayer({
   const [currentStroke, setCurrentStroke] = useState(null);
 
   const isDrawingRef = useRef(false);
+  const svgRef = useRef(null);
 
-  // Convert screen coordinates to canvas space
+  // Convert screen coordinates to canvas space with sub-pixel precision
   const getCanvasCoords = (clientX, clientY) => {
+    if (svgRef.current) {
+      try {
+        const svg = svgRef.current;
+        const ctm = svg.getScreenCTM();
+        if (ctm) {
+          const pt = svg.createSVGPoint();
+          pt.x = clientX;
+          pt.y = clientY;
+          const transformed = pt.matrixTransform(ctm.inverse());
+          return { x: transformed.x, y: transformed.y };
+        }
+      } catch (err) {
+        // Fallback to rect-based calculation below
+      }
+    }
+
+    const rect = svgRef.current?.getBoundingClientRect();
+    const ox = rect ? rect.left : 0;
+    const oy = rect ? rect.top : 56;
     return {
-      x: (clientX - panX) / zoom,
-      y: (clientY - panY) / zoom
+      x: (clientX - ox) / zoom,
+      y: (clientY - oy) / zoom
     };
   };
 
@@ -47,13 +67,17 @@ export default function InkLayer({
     if (!isActive) return;
     if (e.target.closest('.ink-toolbar')) return;
 
+    try {
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+    } catch (_) {}
+
     isDrawingRef.current = true;
     const pt = getCanvasCoords(e.clientX, e.clientY);
 
     if (currentTool === 'eraser') {
       // Find and erase stroke closest to pointer
       const updated = strokes.filter(s => {
-        return !s.points.some(p => Math.hypot(p.x - pt.x, p.y - pt.y) < 15 / zoom);
+        return !s.points.some(p => Math.hypot(p.x - pt.x, p.y - pt.y) < 20 / zoom);
       });
       onUpdateStrokes(updated);
       return;
@@ -74,7 +98,7 @@ export default function InkLayer({
 
     if (currentTool === 'eraser') {
       const updated = strokes.filter(s => {
-        return !s.points.some(p => Math.hypot(p.x - pt.x, p.y - pt.y) < 15 / zoom);
+        return !s.points.some(p => Math.hypot(p.x - pt.x, p.y - pt.y) < 20 / zoom);
       });
       if (updated.length !== strokes.length) {
         onUpdateStrokes(updated);
@@ -90,9 +114,13 @@ export default function InkLayer({
     }
   };
 
-  const handlePointerUp = () => {
+  const handlePointerUp = (e) => {
     if (!isDrawingRef.current) return;
     isDrawingRef.current = false;
+
+    try {
+      e?.currentTarget?.releasePointerCapture?.(e?.pointerId);
+    } catch (_) {}
 
     if (currentStroke && currentStroke.points.length > 1) {
       onUpdateStrokes([...strokes, currentStroke]);
@@ -127,6 +155,7 @@ export default function InkLayer({
     <>
       {/* Interactive SVG Ink Layer */}
       <svg
+        ref={svgRef}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}

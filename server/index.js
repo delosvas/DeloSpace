@@ -4,7 +4,12 @@ import { WebSocketServer } from 'ws';
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import { fileURLToPath } from 'url';
+
+const execAsync = promisify(exec);
 
 import { ptyManager } from './pty-manager.js';
 import { getAgentCatalog } from './agent-catalog.js';
@@ -119,20 +124,103 @@ app.post('/api/memory', (req, res) => {
   res.json({ success: ok });
 });
 
-// Code Studio / File Explorer
-app.get('/api/fs/tree', (req, res) => {
-  const targetDir = req.query.dir || process.cwd();
+// Code Studio / File Explorer & Directory Selector
+app.get('/api/fs/shortcuts', (req, res) => {
+  const home = os.homedir();
+  const shortcuts = [
+    { name: 'Home (~)', path: home },
+    { name: 'Documents', path: path.join(home, 'Documents') },
+    { name: 'Desktop', path: path.join(home, 'Desktop') },
+    { name: 'Downloads', path: path.join(home, 'Downloads') },
+    { name: 'Projects', path: path.join(home, 'Projects') },
+    { name: 'Root (/)', path: '/' }
+  ].filter(s => fs.existsSync(s.path));
+
+  res.json({ success: true, home, shortcuts });
+});
+
+app.post('/api/fs/validate-path', (req, res) => {
+  let { path: targetPath } = req.body;
+  if (!targetPath) return res.status(400).json({ valid: false, error: 'Path is required' });
+
+  if (targetPath.startsWith('~')) {
+    targetPath = path.join(os.homedir(), targetPath.slice(1));
+  }
+  targetPath = path.resolve(targetPath);
+
   try {
+    if (fs.existsSync(targetPath)) {
+      const stat = fs.statSync(targetPath);
+      if (stat.isDirectory()) {
+        return res.json({ valid: true, path: targetPath, exists: true });
+      } else {
+        return res.json({ valid: false, error: 'Path exists but is a file, not a directory' });
+      }
+    } else {
+      return res.json({ valid: false, error: 'Directory does not exist' });
+    }
+  } catch (err) {
+    return res.json({ valid: false, error: err.message });
+  }
+});
+
+app.post('/api/fs/choose-folder', async (req, res) => {
+  if (process.platform !== 'darwin') {
+    return res.status(400).json({ error: 'Native folder dialog only supported on macOS' });
+  }
+  try {
+    const { stdout } = await execAsync(`osascript -e 'POSIX path of (choose folder with prompt "Select Project Working Directory for DeloSpace:")'`);
+    const selected = stdout.trim();
+    if (selected) {
+      return res.json({ success: true, path: selected });
+    }
+    res.json({ success: false, cancelled: true });
+  } catch (err) {
+    if (err.message && err.message.includes('User canceled')) {
+      return res.json({ success: false, cancelled: true });
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/fs/tree', (req, res) => {
+  let targetDir = req.query.dir || process.cwd();
+  if (targetDir.startsWith('~')) {
+    targetDir = path.join(os.homedir(), targetDir.slice(1));
+  }
+  targetDir = path.resolve(targetDir);
+
+  try {
+    if (!fs.existsSync(targetDir)) {
+      return res.status(404).json({ error: 'Directory not found' });
+    }
+    const stat = fs.statSync(targetDir);
+    if (!stat.isDirectory()) {
+      return res.status(400).json({ error: 'Target is not a directory' });
+    }
+
     const entries = fs.readdirSync(targetDir, { withFileTypes: true });
     const items = entries
       .filter(e => !e.name.startsWith('.') && e.name !== 'node_modules')
-      .slice(0, 100)
+      .slice(0, 150)
       .map(e => ({
         name: e.name,
         isDirectory: e.isDirectory(),
         path: path.join(targetDir, e.name)
-      }));
-    res.json({ success: true, currentDir: targetDir, items });
+      }))
+      .sort((a, b) => {
+        if (a.isDirectory && !b.isDirectory) return -1;
+        if (!a.isDirectory && b.isDirectory) return 1;
+        return a.name.localeCompare(b.name);
+      });
+
+    const parentDir = path.dirname(targetDir);
+    res.json({
+      success: true,
+      currentDir: targetDir,
+      parentDir: parentDir !== targetDir ? parentDir : null,
+      items
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

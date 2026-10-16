@@ -8,6 +8,7 @@ import ComposerModal from './components/ComposerModal';
 import HandoffModal from './components/HandoffModal';
 import LoopModal from './components/LoopModal';
 import CodeStudioModal from './components/CodeStudioModal';
+import FolderSelectModal from './components/FolderSelectModal';
 import { fetchWorkspaces, saveWorkspaces, fetchAgents, broadcastInput } from './services/api';
 
 export default function App() {
@@ -22,6 +23,7 @@ export default function App() {
   const [showUsage, setShowUsage] = useState(false);
   const [showLoops, setShowLoops] = useState(false);
   const [showCodeStudio, setShowCodeStudio] = useState(false);
+  const [showFolderSelector, setShowFolderSelector] = useState(false);
   const [isDrawingActive, setIsDrawingActive] = useState(false);
 
   const [handoffSourceNode, setHandoffSourceNode] = useState(null);
@@ -253,6 +255,34 @@ export default function App() {
     setActiveLoops(prev => prev.filter(l => l.id !== loopId));
   };
 
+  const handleSelectWorkspaceCwd = (newCwd, switchTerminals = true) => {
+    if (!activeWorkspace) return;
+
+    // Update workspace cwd and node cwd values
+    const updatedNodes = activeWorkspace.nodes.map(node => {
+      if (node.type === 'terminal' || node.type === 'git') {
+        return { ...node, cwd: newCwd };
+      }
+      return node;
+    });
+
+    const updatedWorkspace = {
+      ...activeWorkspace,
+      cwd: newCwd,
+      nodes: updatedNodes
+    };
+
+    handleUpdateActiveWorkspace(updatedWorkspace);
+
+    // If requested, change directory in active terminal sessions
+    if (switchTerminals) {
+      const activeTerminalIds = terminals.map(t => t.id);
+      if (activeTerminalIds.length > 0) {
+        broadcastInput(activeTerminalIds, `cd "${newCwd}"\n`);
+      }
+    }
+  };
+
   const terminals = activeWorkspace?.nodes.filter(n => n.type === 'terminal') || [];
   const needsInputCount = terminals.filter(t => t.status === 'needs_input').length;
 
@@ -273,6 +303,7 @@ export default function App() {
         onOpenLoops={() => setShowLoops(true)}
         onToggleDrawing={() => setIsDrawingActive(!isDrawingActive)}
         onOpenCodeStudio={() => setShowCodeStudio(true)}
+        onOpenFolderSelector={() => setShowFolderSelector(true)}
         isDrawingActive={isDrawingActive}
         activeLoopsCount={activeLoops.length}
         needsInputCount={needsInputCount}
@@ -359,6 +390,14 @@ export default function App() {
             data: { filePath, content }
           });
         }}
+      />
+
+      {/* Folder / Working Directory Selector Modal */}
+      <FolderSelectModal
+        isOpen={showFolderSelector}
+        onClose={() => setShowFolderSelector(false)}
+        currentCwd={activeWorkspace?.cwd || ''}
+        onSelectCwd={handleSelectWorkspaceCwd}
       />
     </div>
   );

@@ -419,6 +419,10 @@ export default function Canvas({
             setPanX(newX);
             setPanY(newY);
           }}
+          onResetZoom={handleResetZoom}
+          onFitAll={handleFitAll}
+          onZoomIn={() => setZoom(prev => Math.min(2.5, prev * 1.1))}
+          onZoomOut={() => setZoom(prev => Math.max(0.2, prev * 0.9))}
         />
       </div>
     </div>

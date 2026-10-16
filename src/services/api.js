@@ -104,6 +104,27 @@ export async function fetchFileContent(filePath) {
   return res.json();
 }
 
+export async function fetchFsShortcuts() {
+  const res = await fetch(`${BASE_URL}/api/fs/shortcuts`);
+  return res.json();
+}
+
+export async function validateFsPath(targetPath) {
+  const res = await fetch(`${BASE_URL}/api/fs/validate-path`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: targetPath })
+  });
+  return res.json();
+}
+
+export async function chooseFolderDialog() {
+  const res = await fetch(`${BASE_URL}/api/fs/choose-folder`, {
+    method: 'POST'
+  });
+  return res.json();
+}
+
 export function createTerminalWebSocket(terminalId) {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const host = window.location.host;
