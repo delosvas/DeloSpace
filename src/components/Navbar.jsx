@@ -19,7 +19,8 @@ import {
   Network,
   Infinity as InfinityIcon,
   PenTool,
-  BarChart2
+  BarChart2,
+  X
 } from 'lucide-react';
 
 export default function Navbar({

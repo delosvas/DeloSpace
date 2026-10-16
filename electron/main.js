@@ -94,8 +94,18 @@ async function createWindow() {
     console.warn('[DeloSpace Electron] Main frame failed to load:', errorCode, errorDescription);
   });
 
+  mainWindow.webContents.on('render-process-gone', (event, details) => {
+    console.error('[DeloSpace Electron] Renderer process gone:', details.reason);
+  });
+
   await ensureServerRunning();
-  await mainWindow.loadURL(SERVER_URL);
+  try {
+    await mainWindow.loadURL(SERVER_URL);
+  } catch (err) {
+    console.warn('[DeloSpace Electron] First loadURL attempt failed, retrying in 500ms...', err.message);
+    await new Promise(r => setTimeout(r, 500));
+    await mainWindow.loadURL(SERVER_URL);
+  }
   mainWindow.show();
 
   mainWindow.on('closed', () => {
