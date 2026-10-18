@@ -123,7 +123,18 @@ app.whenReady().then(async () => {
   });
 });
 
-app.on('window-all-closed', () => {
+async function flushServer() {
+  try {
+    await new Promise((resolve) => {
+      const req = http.request(`http://localhost:${SERVER_PORT}/api/terminals/flush`, { method: 'POST', timeout: 600 }, () => resolve());
+      req.on('error', () => resolve());
+      req.end();
+    });
+  } catch (_) {}
+}
+
+app.on('window-all-closed', async () => {
+  await flushServer();
   if (serverProcess) {
     serverProcess.kill();
     serverProcess = null;
@@ -133,7 +144,8 @@ app.on('window-all-closed', () => {
   }
 });
 
-app.on('before-quit', () => {
+app.on('before-quit', async () => {
+  await flushServer();
   if (serverProcess) {
     serverProcess.kill();
     serverProcess = null;

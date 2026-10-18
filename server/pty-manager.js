@@ -4,6 +4,10 @@ import path from 'path';
 import fs from 'fs';
 
 const __dirname = path.dirname(new URL(import.meta.url).pathname);
+const HISTORY_DIR = path.join(os.homedir(), '.delospace', 'history');
+if (!fs.existsSync(HISTORY_DIR)) {
+  fs.mkdirSync(HISTORY_DIR, { recursive: true });
+}
 
 // Ensure spawn-helper permissions on macOS
 function ensureSpawnHelper() {
@@ -74,13 +78,28 @@ class PtyManager {
       env
     });
 
+    const historyFile = path.join(HISTORY_DIR, `${id}.log`);
+    let preloadedHistory = [];
+    const hasSavedHistory = fs.existsSync(historyFile);
+    if (hasSavedHistory) {
+      try {
+        const savedText = fs.readFileSync(historyFile, 'utf8');
+        if (savedText && savedText.trim().length > 0) {
+          preloadedHistory = [savedText];
+        }
+      } catch (err) {
+        console.warn(`[PTY] Could not read saved history for ${id}:`, err.message);
+      }
+    }
+
     const session = {
       id,
       ptyProcess,
-      history: [],
-      maxHistory: 500,
+      history: preloadedHistory,
+      maxHistory: 1500,
       status: 'idle', // 'idle' | 'working' | 'needs_input'
       statusTimer: null,
+      saveTimer: null,
       subscribers: new Set(),
       metadata: {
         agentType: options.agentType || 'zsh',
@@ -98,6 +117,14 @@ class PtyManager {
       if (session.history.length > session.maxHistory) {
         session.history.shift();
       }
+
+      // Debounce saving full session history to disk
+      clearTimeout(session.saveTimer);
+      session.saveTimer = setTimeout(() => {
+        try {
+          fs.writeFileSync(historyFile, session.history.join(''), 'utf8');
+        } catch (_) {}
+      }, 2000);
 
       // Mark as working
       this.updateStatus(session, 'working');
@@ -128,11 +155,21 @@ class PtyManager {
 
     this.sessions.set(id, session);
 
-    // If an initial command was provided (e.g. 'claude', 'codex'), send it
-    if (options.command) {
+    // Command resolution: if resuming a session with existing history,
+    // continue the exact conversation rather than wiping it clean!
+    let cmdToRun = options.command || '';
+    if (hasSavedHistory && preloadedHistory.length > 0) {
+      if (options.agentType === 'claude' || options.command === 'claude') {
+        cmdToRun = 'claude --continue';
+      } else if (options.agentType === 'codex' || options.command === 'codex') {
+        cmdToRun = 'codex resume --last 2>/dev/null || codex';
+      }
+    }
+
+    if (cmdToRun) {
       setTimeout(() => {
-        ptyProcess.write(`${options.command}\n`);
-      }, 600);
+        ptyProcess.write(`${cmdToRun}\n`);
+      }, 700);
     }
 
     return session;
@@ -216,13 +253,32 @@ class PtyManager {
   kill(id) {
     const session = this.sessions.get(id);
     if (session) {
+      clearTimeout(session.saveTimer);
+      clearTimeout(session.statusTimer);
       try {
         session.ptyProcess.kill();
       } catch {}
       this.sessions.delete(id);
-      return true;
     }
-    return false;
+    // Delete persistent history when node is closed by user
+    try {
+      const historyFile = path.join(HISTORY_DIR, `${id}.log`);
+      if (fs.existsSync(historyFile)) {
+        fs.unlinkSync(historyFile);
+      }
+    } catch (_) {}
+    return true;
+  }
+
+  saveAllHistoriesSync() {
+    for (const [id, session] of this.sessions) {
+      if (session && session.history && session.history.length > 0) {
+        try {
+          const historyFile = path.join(HISTORY_DIR, `${id}.log`);
+          fs.writeFileSync(historyFile, session.history.join(''), 'utf8');
+        } catch (_) {}
+      }
+    }
   }
 
   getHistory(id, maxLines = 100) {

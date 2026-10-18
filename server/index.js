@@ -84,6 +84,11 @@ app.get('/api/terminal/:id/history', (req, res) => {
   res.json({ success: true, history });
 });
 
+app.post('/api/terminals/flush', (req, res) => {
+  ptyManager.saveAllHistoriesSync();
+  res.json({ success: true });
+});
+
 app.get('/api/terminals/active', (req, res) => {
   const active = ptyManager.getAllSessions();
   res.json({ success: true, sessions: active });
@@ -291,4 +296,17 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`[Symvibe Server] running at http://localhost:${PORT}`);
   console.log(`[Symvibe Server] PTY ready for macOS native agents on zsh`);
+});
+
+// Flush terminal history on server shutdown
+process.on('SIGINT', () => {
+  try { ptyManager.saveAllHistoriesSync(); } catch (_) {}
+  process.exit(0);
+});
+process.on('SIGTERM', () => {
+  try { ptyManager.saveAllHistoriesSync(); } catch (_) {}
+  process.exit(0);
+});
+process.on('beforeExit', () => {
+  try { ptyManager.saveAllHistoriesSync(); } catch (_) {}
 });

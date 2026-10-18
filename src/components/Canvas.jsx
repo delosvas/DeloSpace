@@ -92,6 +92,11 @@ export default function Canvas({
   const handleMouseMove = (e) => {
     if (isDrawingActive) return;
 
+    if (e.buttons === 0) {
+      handleMouseUp();
+      return;
+    }
+
     if (isPanning) {
       setPanX(e.clientX - panStart.x);
       setPanY(e.clientY - panStart.y);
@@ -123,6 +128,37 @@ export default function Canvas({
     setDraggingNodeId(null);
     setResizingNodeId(null);
   };
+
+  // Global window listeners so mouse release is NEVER missed even outside the window or over iframes
+  useEffect(() => {
+    if (!isPanning && !draggingNodeId && !resizingNodeId) return;
+
+    const handleWindowMouseMove = (e) => {
+      if (e.buttons === 0) {
+        handleMouseUp();
+        return;
+      }
+      handleMouseMove(e);
+    };
+
+    const handleWindowMouseUp = () => {
+      handleMouseUp();
+    };
+
+    const handleWindowBlur = () => {
+      handleMouseUp();
+    };
+
+    window.addEventListener('mousemove', handleWindowMouseMove, { passive: true });
+    window.addEventListener('mouseup', handleWindowMouseUp);
+    window.addEventListener('blur', handleWindowBlur);
+
+    return () => {
+      window.removeEventListener('mousemove', handleWindowMouseMove);
+      window.removeEventListener('mouseup', handleWindowMouseUp);
+      window.removeEventListener('blur', handleWindowBlur);
+    };
+  }, [isPanning, draggingNodeId, resizingNodeId, panStart, dragOffset, resizeStart, zoom, panX, panY, onUpdateNode]);
 
   // Node Drag Handler (from header)
   const handleNodeDragStart = (nodeId, e) => {
@@ -427,6 +463,15 @@ export default function Canvas({
           onZoomOut={() => setZoom(prev => Math.max(0.2, prev * 0.9))}
         />
       </div>
+
+      {/* Fullscreen transparent shield during any drag/pan action so iframes and child elements never steal mouseup events */}
+      {(isPanning || draggingNodeId || resizingNodeId) && (
+        <div 
+          className="fixed inset-0 z-50 cursor-grabbing select-none"
+          style={{ pointerEvents: 'auto' }}
+          onMouseUp={handleMouseUp}
+        />
+      )}
     </div>
   );
 }
