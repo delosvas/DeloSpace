@@ -49,7 +49,7 @@ export default function App() {
     }, delay);
   };
 
-  // Initial load & window close flush
+  // Initial load
   useEffect(() => {
     fetchWorkspaces().then(wsList => {
       setWorkspaces(wsList);
@@ -62,18 +62,6 @@ export default function App() {
     fetchAgents().then(agents => {
       setInstalledAgents(agents);
     });
-
-    const handleBeforeUnload = () => {
-      if (workspacesRef.current && workspacesRef.current.length > 0) {
-        saveWorkspaces(workspacesRef.current);
-      }
-      try {
-        fetch('/api/terminals/flush', { method: 'POST', keepalive: true }).catch(() => {});
-      } catch (_) {}
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
 
   const activeWorkspace = workspaces.find(w => w.id === activeWorkspaceId);

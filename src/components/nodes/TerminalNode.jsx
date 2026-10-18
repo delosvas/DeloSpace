@@ -122,10 +122,7 @@ export default function TerminalNode({
           if (msg.type === 'output') {
             term.write(msg.data);
           } else if (msg.type === 'history') {
-            term.write(msg.data, () => {
-              fitAddonRef.current?.fit?.();
-              term.scrollToBottom();
-            });
+            term.write(msg.data);
           } else if (msg.type === 'status') {
             setStatus(msg.status);
             onUpdate?.({ id: node.id, status: msg.status });
