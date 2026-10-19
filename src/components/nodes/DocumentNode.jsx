@@ -106,12 +106,12 @@ export default function DocumentNode({ node, onUpdate, onClose, isMaximized, onT
       </div>
 
       {/* Body */}
-      <div className="flex-1 bg-[#0B0908] overflow-y-auto p-4 flex justify-center">
+      <div className="flex-1 min-h-0 bg-[#0B0908] overflow-y-auto overscroll-contain p-4 flex justify-center">
         {isEditing ? (
           <textarea
             value={content}
             onChange={(e) => handleContentChange(e.target.value)}
-            className="w-full h-full bg-[#14110E] border border-[rgba(241,233,221,0.1)] rounded-lg p-4 font-mono text-[13px] text-[#F1E9DD] leading-relaxed resize-none focus:outline-none focus:border-[#FF8038]"
+            className="w-full h-full bg-[#14110E] border border-[rgba(241,233,221,0.1)] rounded-lg p-4 font-mono text-[13px] text-[#F1E9DD] leading-relaxed resize-none focus:outline-none focus:border-[#FF8038] overflow-y-auto overscroll-contain"
           />
         ) : (
           <div className="w-full max-w-2xl bg-[#14110E] p-8 rounded-xl border border-[rgba(241,233,221,0.08)] shadow-lg text-[#F1E9DD] space-y-3 font-sans">

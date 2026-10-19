@@ -31,6 +31,7 @@ const AGENT_CONFIGS = {
 
 export default function TerminalNode({ 
   node, 
+  zoom = 1,
   onUpdate, 
   onClose, 
   onHandoff,
@@ -42,6 +43,11 @@ export default function TerminalNode({
   const termInstanceRef = useRef(null);
   const fitAddonRef = useRef(null);
   const wsRef = useRef(null);
+  const zoomRef = useRef(zoom);
+
+  useEffect(() => {
+    zoomRef.current = zoom;
+  }, [zoom]);
 
   const [promptText, setPromptText] = useState('');
   const [status, setStatus] = useState(node.status || 'idle');
@@ -92,6 +98,91 @@ export default function TerminalNode({
 
     term.open(terminalRef.current);
     fitAddon.fit();
+
+    // Compensate for Canvas CSS transform scale(zoom) so mouse text selection,
+    // double-click word selection, link clicking, and drag-selection match the physical cursor 1:1
+    try {
+      const core = term._core;
+      if (core?._mouseService) {
+        const origGetCoords = core._mouseService.getCoords.bind(core._mouseService);
+        core._mouseService.getCoords = (event, element, colCount, rowCount, isSelection) => {
+          const currentZoom = zoomRef.current || 1;
+          if (!event || currentZoom === 1) {
+            return origGetCoords(event, element, colCount, rowCount, isSelection);
+          }
+          const targetElement = element || core.screenElement || core.element;
+          if (!targetElement) {
+            return origGetCoords(event, element, colCount, rowCount, isSelection);
+          }
+          const rect = targetElement.getBoundingClientRect();
+          const adjustedEvent = {
+            clientX: rect.left + (event.clientX - rect.left) / currentZoom,
+            clientY: rect.top + (event.clientY - rect.top) / currentZoom,
+            button: event.button,
+            buttons: event.buttons,
+            ctrlKey: event.ctrlKey,
+            shiftKey: event.shiftKey,
+            altKey: event.altKey,
+            metaKey: event.metaKey
+          };
+          return origGetCoords(adjustedEvent, element, colCount, rowCount, isSelection);
+        };
+
+        if (core._mouseService.getMouseReportCoords) {
+          const origGetMouseReportCoords = core._mouseService.getMouseReportCoords.bind(core._mouseService);
+          core._mouseService.getMouseReportCoords = (event, element) => {
+            const currentZoom = zoomRef.current || 1;
+            if (!event || currentZoom === 1) {
+              return origGetMouseReportCoords(event, element);
+            }
+            const targetElement = element || core.screenElement || core.element;
+            if (!targetElement) {
+              return origGetMouseReportCoords(event, element);
+            }
+            const rect = targetElement.getBoundingClientRect();
+            const adjustedEvent = {
+              clientX: rect.left + (event.clientX - rect.left) / currentZoom,
+              clientY: rect.top + (event.clientY - rect.top) / currentZoom,
+              button: event.button,
+              buttons: event.buttons,
+              ctrlKey: event.ctrlKey,
+              shiftKey: event.shiftKey,
+              altKey: event.altKey,
+              metaKey: event.metaKey
+            };
+            return origGetMouseReportCoords(adjustedEvent, element);
+          };
+        }
+      }
+
+      if (core?._selectionService?._getMouseEventScrollAmount) {
+        const origGetScrollAmount = core._selectionService._getMouseEventScrollAmount.bind(core._selectionService);
+        core._selectionService._getMouseEventScrollAmount = (event) => {
+          const currentZoom = zoomRef.current || 1;
+          if (!event || currentZoom === 1) {
+            return origGetScrollAmount(event);
+          }
+          const screenEl = core._selectionService._screenElement || core.screenElement;
+          if (!screenEl) {
+            return origGetScrollAmount(event);
+          }
+          const rect = screenEl.getBoundingClientRect();
+          const adjustedEvent = {
+            clientX: rect.left + (event.clientX - rect.left) / currentZoom,
+            clientY: rect.top + (event.clientY - rect.top) / currentZoom,
+            button: event.button,
+            buttons: event.buttons,
+            ctrlKey: event.ctrlKey,
+            shiftKey: event.shiftKey,
+            altKey: event.altKey,
+            metaKey: event.metaKey
+          };
+          return origGetScrollAmount(adjustedEvent);
+        };
+      }
+    } catch (err) {
+      console.warn('Failed to attach coordinate scale compensator to terminal:', err);
+    }
 
     termInstanceRef.current = term;
     fitAddonRef.current = fitAddon;
@@ -309,7 +400,7 @@ export default function TerminalNode({
       {/* Terminal Viewport */}
       <div 
         ref={terminalRef} 
-        className="flex-1 w-full bg-[#0B0908] overflow-hidden p-1 relative" 
+        className="flex-1 min-h-0 w-full bg-[#0B0908] overflow-hidden p-1 relative overscroll-contain" 
       />
 
       {/* Bottom Prompt Bar & Quick Directive */}

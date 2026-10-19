@@ -123,11 +123,11 @@ export default function KanbanNode({ node, onUpdate, onClose, isMaximized, onTog
       </div>
 
       {/* Columns Container */}
-      <div className="flex-1 p-3 overflow-x-auto flex gap-3 bg-[#0B0908]/50">
+      <div className="flex-1 min-h-0 p-3 overflow-x-auto flex gap-3 bg-[#0B0908]/50 overscroll-contain">
         {columns.map((col, colIdx) => (
           <div 
             key={col.id} 
-            className="flex-1 min-w-[180px] bg-[#14110E]/90 border border-[rgba(241,233,221,0.08)] rounded-lg flex flex-col overflow-hidden"
+            className="flex-1 min-w-[180px] bg-[#14110E]/90 border border-[rgba(241,233,221,0.08)] rounded-lg flex flex-col overflow-hidden min-h-0"
           >
             {/* Column Header */}
             <div className="px-3 py-2 bg-[rgba(28,23,19,0.7)] border-b border-[rgba(241,233,221,0.06)] flex items-center justify-between">
@@ -140,7 +140,7 @@ export default function KanbanNode({ node, onUpdate, onClose, isMaximized, onTog
             </div>
 
             {/* Column Cards */}
-            <div className="flex-1 p-2 space-y-2 overflow-y-auto max-h-[380px]">
+            <div className="flex-1 min-h-0 p-2 space-y-2 overflow-y-auto overscroll-contain">
               {col.items.map((item, itemIdx) => (
                 <div 
                   key={itemIdx}

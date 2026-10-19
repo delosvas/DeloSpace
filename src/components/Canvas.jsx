@@ -62,6 +62,16 @@ export default function Canvas({
   // Wheel zoom anchored at cursor
   const handleWheel = (e) => {
     if (maximizedNodeId || isDrawingActive) return;
+
+    // If scrolling over any canvas node, do NOT zoom the canvas unless the user is
+    // performing a trackpad pinch-to-zoom gesture (ctrlKey or metaKey).
+    // This allows node contents (markdown notes, code editor, kanban cards, terminal, docs)
+    // to scroll natively without hijacking the view.
+    const isOverNode = !!e.target.closest('.canvas-node');
+    if (isOverNode && !e.ctrlKey && !e.metaKey) {
+      return;
+    }
+
     e.preventDefault();
 
     const zoomFactor = e.deltaY < 0 ? 1.08 : 0.92;
@@ -236,6 +246,7 @@ export default function Canvas({
         return (
           <TerminalNode 
             node={node}
+            zoom={isMax ? 1 : zoom}
             onUpdate={handleChildNodeUpdate}
             onClose={handleCloseNode}
             onHandoff={onHandoff}
@@ -368,12 +379,13 @@ export default function Canvas({
           return (
             <div
               key={node.id}
+              data-node-id={node.id}
               style={{
                 transform: `translate(${node.x}px, ${node.y}px)`,
                 width: `${node.width}px`,
                 height: `${node.height}px`
               }}
-              className="absolute pointer-events-auto group transition-shadow duration-200"
+              className="canvas-node absolute pointer-events-auto group transition-shadow duration-200"
             >
               {/* Drag handle header overlay */}
               <div 
@@ -403,7 +415,7 @@ export default function Canvas({
         const node = workspace.nodes.find(n => n.id === maximizedNodeId);
         if (!node) return null;
         return (
-          <div className="absolute inset-4 z-40 animate-in fade-in zoom-in-95 duration-200">
+          <div className="canvas-node absolute inset-4 z-40 animate-in fade-in zoom-in-95 duration-200">
             {renderNodeComponent(node, true)}
           </div>
         );

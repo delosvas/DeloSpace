@@ -117,7 +117,7 @@ export default function WebTileNode({ node, onUpdate, onClose, isMaximized, onTo
       </div>
 
       {/* Frame Container */}
-      <div className="flex-1 w-full bg-[#050403] overflow-auto flex justify-center items-stretch p-0">
+      <div className="flex-1 min-h-0 w-full bg-[#050403] overflow-auto flex justify-center items-stretch p-0 overscroll-contain">
         <div 
           style={{ width: getFrameWidth() }} 
           className="h-full bg-white transition-all duration-300 relative"

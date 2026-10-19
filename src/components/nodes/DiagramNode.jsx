@@ -114,12 +114,12 @@ export default function DiagramNode({ node, onUpdate, onClose, isMaximized, onTo
       </div>
 
       {/* Body */}
-      <div className="flex-1 bg-[#0B0908] overflow-auto p-4 flex flex-col justify-center items-center">
+      <div className="flex-1 min-h-0 bg-[#0B0908] overflow-auto p-4 flex flex-col justify-center items-center overscroll-contain">
         {isEditing ? (
           <textarea
             value={code}
             onChange={(e) => handleCodeChange(e.target.value)}
-            className="w-full h-full bg-[#14110E] border border-[rgba(241,233,221,0.1)] rounded-lg p-3 font-mono text-[12px] text-[#F1E9DD] resize-none focus:outline-none focus:border-[#FF8038]"
+            className="w-full h-full bg-[#14110E] border border-[rgba(241,233,221,0.1)] rounded-lg p-3 font-mono text-[12px] text-[#F1E9DD] resize-none focus:outline-none focus:border-[#FF8038] overflow-auto overscroll-contain"
             placeholder="Write mermaid graph syntax..."
           />
         ) : (

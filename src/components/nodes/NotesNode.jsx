@@ -94,12 +94,12 @@ export default function NotesNode({ node, onUpdate, onClose, isMaximized, onTogg
       </div>
 
       {/* Content */}
-      <div className="flex-1 p-4 bg-[#0B0908] overflow-y-auto">
+      <div className="flex-1 min-h-0 p-4 bg-[#0B0908] overflow-y-auto overscroll-contain">
         {isEditing ? (
           <textarea
             value={content}
             onChange={(e) => handleContentChange(e.target.value)}
-            className="w-full h-full bg-transparent text-[#F1E9DD] font-mono text-[13px] resize-none focus:outline-none leading-relaxed"
+            className="w-full h-full bg-transparent text-[#F1E9DD] font-mono text-[13px] resize-none focus:outline-none leading-relaxed overflow-y-auto overscroll-contain"
             placeholder="Write markdown notes or checklists with - [ ] task…"
           />
         ) : (

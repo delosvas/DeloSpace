@@ -93,9 +93,9 @@ export default function MarkdownVaultNode({ node, onUpdate, onClose, isMaximized
       </div>
 
       {/* Body Grid */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 min-h-0 flex overflow-hidden">
         {/* Left Vault Explorer */}
-        <div className="w-56 bg-[#100D0B] border-r border-[rgba(241,233,221,0.08)] flex flex-col">
+        <div className="w-56 bg-[#100D0B] border-r border-[rgba(241,233,221,0.08)] flex flex-col min-h-0">
           <div className="p-2 border-b border-[rgba(241,233,221,0.06)] flex items-center gap-1.5">
             <Search size={12} className="text-[#8B7E72]" />
             <input 
@@ -114,7 +114,7 @@ export default function MarkdownVaultNode({ node, onUpdate, onClose, isMaximized
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-1.5 space-y-0.5">
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-1.5 space-y-0.5">
             {filteredNotes.map(n => (
               <div 
                 key={n.id}
@@ -143,9 +143,9 @@ export default function MarkdownVaultNode({ node, onUpdate, onClose, isMaximized
         </div>
 
         {/* Right Editor / Link Graph */}
-        <div className="flex-1 flex flex-col bg-[#0B0908] overflow-hidden">
+        <div className="flex-1 min-h-0 flex flex-col bg-[#0B0908] overflow-hidden">
           {activeTab === 'editor' ? (
-            <div className="flex-1 flex flex-col p-4">
+            <div className="flex-1 min-h-0 flex flex-col p-4">
               <input
                 type="text"
                 value={activeNote?.title || ''}
@@ -160,7 +160,7 @@ export default function MarkdownVaultNode({ node, onUpdate, onClose, isMaximized
                 value={activeNote?.content || ''}
                 onChange={(e) => handleNoteContentChange(e.target.value)}
                 placeholder="Write markdown with [[Wiki Links]]..."
-                className="flex-1 bg-transparent text-[13px] font-mono text-[#CDC2B3] resize-none focus:outline-none leading-relaxed"
+                className="flex-1 min-h-0 bg-transparent text-[13px] font-mono text-[#CDC2B3] resize-none focus:outline-none leading-relaxed overflow-y-auto overscroll-contain"
               />
             </div>
           ) : (

@@ -62,7 +62,7 @@ export default function GitNode({ node, onClose, isMaximized, onToggleMaximize }
       </div>
 
       {/* Content */}
-      <div className="flex-1 p-3.5 bg-[#0B0908] overflow-y-auto space-y-4">
+      <div className="flex-1 min-h-0 p-3.5 bg-[#0B0908] overflow-y-auto space-y-4 overscroll-contain">
         {gitData && gitData.isRepo ? (
           <>
             {/* Branch Summary */}
@@ -84,7 +84,7 @@ export default function GitNode({ node, onClose, isMaximized, onToggleMaximize }
                 <span>Working Changes</span>
                 <span>{gitData.filesCount} files</span>
               </div>
-              <div className="space-y-1 max-h-[160px] overflow-y-auto">
+              <div className="space-y-1 max-h-[160px] overflow-y-auto overscroll-contain">
                 {gitData.files && gitData.files.length > 0 ? (
                   gitData.files.map((file, idx) => (
                     <div 

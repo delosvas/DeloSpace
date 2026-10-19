@@ -93,7 +93,7 @@ export default function CodeNode({ node, onUpdate, onClose, isMaximized, onToggl
       </div>
 
       {/* Code Viewer with Line Numbers */}
-      <div className="flex-1 p-0 bg-[#0B0908] overflow-auto flex font-mono text-[12px] leading-relaxed">
+      <div className="flex-1 min-h-0 p-0 bg-[#0B0908] overflow-auto flex font-mono text-[12px] leading-relaxed overscroll-contain">
         {loading ? (
           <div className="p-6 text-[#8B7E72] italic">Loading code file…</div>
         ) : (
