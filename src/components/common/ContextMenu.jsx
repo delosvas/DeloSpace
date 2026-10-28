@@ -17,8 +17,16 @@ import {
   Trash2,
   Palette,
   Monitor,
-  Move
+  Move,
+  Minus
 } from 'lucide-react';
+
+const FONT_PRESETS = [
+  { label: 'S', size: 10 },
+  { label: 'M', size: 12 },
+  { label: 'L', size: 15 },
+  { label: 'XL', size: 18 }
+];
 
 const STICKY_COLORS = [
   { id: 'yellow', bg: '#FEF08A', border: '#FDE047', label: 'Yellow' },
@@ -45,7 +53,8 @@ export default function ContextMenu({
   onFitAll,
   onEditSticky,
   onChangeStickyColor,
-  onDeleteSticky
+  onDeleteSticky,
+  onUpdateStickyFontSize
 }) {
   const menuRef = useRef(null);
 
@@ -74,7 +83,7 @@ export default function ContextMenu({
 
   // Keep menu within screen boundaries
   const menuWidth = 220;
-  const menuHeight = targetType === 'node' ? 240 : targetType === 'sticky' ? 180 : 260;
+  const menuHeight = targetType === 'node' ? 240 : targetType === 'sticky' ? 260 : 260;
   const clampedX = Math.min(x, window.innerWidth - menuWidth - 10);
   const clampedY = Math.min(y, window.innerHeight - menuHeight - 10);
 
@@ -146,8 +155,64 @@ export default function ContextMenu({
             Sticky Note
           </div>
 
+          {/* Text Size Stepper & Presets */}
+          <div className="px-3 py-1.5 border-b border-[rgba(241,233,221,0.08)] mb-1">
+            <div className="flex items-center justify-between text-[10px] font-mono uppercase text-[#8B7E72] mb-1">
+              <span>Text Size</span>
+              <span className="text-[#FF8038] font-bold">{contextMenu.stickyFontSize || 12}px</span>
+            </div>
+            <div className="flex items-center gap-1 bg-black/40 p-1 rounded-lg border border-white/5">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const cur = contextMenu.stickyFontSize || 12;
+                  onUpdateStickyFontSize?.(targetNodeId, targetStickyId, Math.max(9, cur - 1));
+                }}
+                className="w-5 h-5 flex items-center justify-center rounded hover:bg-white/10 active:bg-white/20 text-[#CDC2B3] hover:text-white transition font-bold"
+                title="Decrease font size"
+              >
+                <Minus size={11} />
+              </button>
+
+              <div className="flex-1 flex justify-center gap-1">
+                {FONT_PRESETS.map(preset => (
+                  <button
+                    key={preset.label}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onUpdateStickyFontSize?.(targetNodeId, targetStickyId, preset.size);
+                    }}
+                    className={`px-1.5 py-0.5 text-[10px] font-mono rounded transition ${
+                      (contextMenu.stickyFontSize || 12) === preset.size
+                        ? 'bg-[#FF8038] text-white font-bold shadow-sm'
+                        : 'hover:bg-white/10 text-[#A89A8C] hover:text-white'
+                    }`}
+                    title={`${preset.label} (${preset.size}px)`}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const cur = contextMenu.stickyFontSize || 12;
+                  onUpdateStickyFontSize?.(targetNodeId, targetStickyId, Math.min(32, cur + 1));
+                }}
+                className="w-5 h-5 flex items-center justify-center rounded hover:bg-white/10 active:bg-white/20 text-[#CDC2B3] hover:text-white transition font-bold"
+                title="Increase font size"
+              >
+                <Plus size={11} />
+              </button>
+            </div>
+          </div>
+
           <button
-            onClick={() => { onEditSticky?.(targetStickyId); onClose(); }}
+            onClick={() => { onEditSticky?.(targetNodeId, targetStickyId); onClose(); }}
             className="w-full px-3 py-1.5 hover:bg-white/10 flex items-center gap-2 text-left text-[#F1E9DD] hover:text-white transition"
           >
             <Edit2 size={13} />
@@ -165,7 +230,9 @@ export default function ContextMenu({
                   key={col.id}
                   onClick={() => { onChangeStickyColor?.(targetNodeId, targetStickyId, col.id); onClose(); }}
                   style={{ backgroundColor: col.bg, borderColor: col.border }}
-                  className="w-5 h-5 rounded-full border hover:scale-110 transition shadow-sm"
+                  className={`w-5 h-5 rounded-full border hover:scale-110 transition shadow-sm ${
+                    (contextMenu.stickyColor || 'yellow') === col.id ? 'ring-2 ring-white ring-offset-1 ring-offset-[#14110E]' : ''
+                  }`}
                   title={col.label}
                 />
               ))}

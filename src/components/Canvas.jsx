@@ -538,11 +538,33 @@ export default function Canvas({
     onUpdateNode?.({ id: nodeId, stickyNotes });
   };
 
+  const handleUpdateStickyFontSize = (nodeId, stickyId, fontSize) => {
+    const node = workspace.nodes.find(n => n.id === nodeId);
+    if (!node) return;
+    const clampedSize = Math.max(9, Math.min(36, Math.round(fontSize)));
+    const stickyNotes = (node.stickyNotes || []).map(s => 
+      s.id === stickyId ? { ...s, fontSize: clampedSize } : s
+    );
+    onUpdateNode?.({ id: nodeId, stickyNotes });
+    setContextMenu(prev => {
+      if (prev?.isOpen && prev.targetStickyId === stickyId) {
+        return { ...prev, stickyFontSize: clampedSize };
+      }
+      return prev;
+    });
+  };
+
   const handleChangeStickyColor = (nodeId, stickyId, color) => {
     const node = workspace.nodes.find(n => n.id === nodeId);
     if (!node) return;
     const stickyNotes = (node.stickyNotes || []).map(s => s.id === stickyId ? { ...s, color } : s);
     onUpdateNode?.({ id: nodeId, stickyNotes });
+    setContextMenu(prev => {
+      if (prev?.isOpen && prev.targetStickyId === stickyId) {
+        return { ...prev, stickyColor: color };
+      }
+      return prev;
+    });
   };
 
   const handleDeleteSticky = (nodeId, stickyId) => {
@@ -553,10 +575,17 @@ export default function Canvas({
   };
 
   const handleEditSticky = (nodeId, stickyId) => {
-    const node = workspace.nodes.find(n => n.id === nodeId);
-    if (!node) return;
-    const stickyNotes = (node.stickyNotes || []).map(s => s.id === stickyId ? { ...s, isEditing: true } : s);
-    onUpdateNode?.({ id: nodeId, stickyNotes });
+    let targetNode = null;
+    let targetId = stickyId;
+    if (!stickyId) {
+      targetId = nodeId;
+      targetNode = workspace.nodes.find(n => n.stickyNotes?.some(s => s.id === targetId));
+    } else {
+      targetNode = workspace.nodes.find(n => n.id === nodeId);
+    }
+    if (!targetNode) return;
+    const stickyNotes = (targetNode.stickyNotes || []).map(s => s.id === targetId ? { ...s, isEditing: true } : s);
+    onUpdateNode?.({ id: targetNode.id, stickyNotes });
   };
 
   // Context Menu Event Handlers
@@ -583,13 +612,17 @@ export default function Canvas({
   const handleStickyContextMenu = (e, nodeId, stickyId) => {
     e.preventDefault();
     e.stopPropagation();
+    const node = workspace.nodes.find(n => n.id === nodeId);
+    const sticky = node?.stickyNotes?.find(s => s.id === stickyId);
     setContextMenu({
       isOpen: true,
       x: e.clientX,
       y: e.clientY,
       targetType: 'sticky',
       targetNodeId: nodeId,
-      targetStickyId: stickyId
+      targetStickyId: stickyId,
+      stickyFontSize: sticky?.fontSize || 12,
+      stickyColor: sticky?.color || 'yellow'
     });
   };
 
@@ -865,6 +898,8 @@ export default function Canvas({
                   onUpdateText={handleUpdateStickyText}
                   onUpdatePosition={handleUpdateStickyPosition}
                   onUpdateDimensions={handleUpdateStickyDimensions}
+                  onUpdateFontSize={handleUpdateStickyFontSize}
+                  onChangeColor={handleChangeStickyColor}
                   onDelete={handleDeleteSticky}
                   onContextMenu={handleStickyContextMenu}
                 />
@@ -915,6 +950,7 @@ export default function Canvas({
         onEditSticky={handleEditSticky}
         onChangeStickyColor={handleChangeStickyColor}
         onDeleteSticky={handleDeleteSticky}
+        onUpdateStickyFontSize={handleUpdateStickyFontSize}
       />
 
       {/* Bottom Floating Canvas Controls */}
