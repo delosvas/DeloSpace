@@ -133,44 +133,64 @@ export default function Navbar({
     setShowPresetMenu(false);
   };
 
+  // Close any open dropdown menu or customize menu when clicking anywhere outside
   useEffect(() => {
-    const handleOutside = () => {
+    const isAnyMenuOpen = 
+      showAddMenu || 
+      showStudiosMenu || 
+      showPresetMenu || 
+      showMoreMenu || 
+      showSubspaceMenu || 
+      showCustomizeMenu;
+
+    if (!isAnyMenuOpen) return;
+
+    const handleOutsideClick = (e) => {
+      // If clicking inside an open menu's container, do not close that menu
+      if (showAddMenu && e.target.closest('.add-menu-container')) return;
+      if (showStudiosMenu && e.target.closest('.studios-menu-container')) return;
+      if (showPresetMenu && e.target.closest('.preset-menu-container')) return;
+      if (showMoreMenu && e.target.closest('.more-menu-container')) return;
+      if (showSubspaceMenu && e.target.closest('.subspace-menu-container')) return;
+      if (showCustomizeMenu && e.target.closest('.customize-menu-container')) return;
+
+      // Clicked in any random place outside the menu -> close all
+      setShowAddMenu(false);
+      setShowStudiosMenu(false);
+      setShowPresetMenu(false);
+      setShowMoreMenu(false);
+      setShowSubspaceMenu(false);
       setShowCustomizeMenu(false);
     };
+
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
-        setShowCustomizeMenu(false);
-        setShowMoreMenu(false);
-        setShowSubspaceMenu(false);
         setShowAddMenu(false);
         setShowStudiosMenu(false);
         setShowPresetMenu(false);
-      }
-    };
-    if (showCustomizeMenu) {
-      window.addEventListener('click', handleOutside);
-      window.addEventListener('keydown', handleKeyDown);
-      return () => {
-        window.removeEventListener('click', handleOutside);
-        window.removeEventListener('keydown', handleKeyDown);
-      };
-    }
-  }, [showCustomizeMenu]);
-
-  useEffect(() => {
-    const handleOutside = (e) => {
-      if (!e.target.closest('.more-menu-container')) {
         setShowMoreMenu(false);
-      }
-      if (!e.target.closest('.subspace-menu-container')) {
         setShowSubspaceMenu(false);
+        setShowCustomizeMenu(false);
       }
     };
-    if (showMoreMenu || showSubspaceMenu) {
-      window.addEventListener('click', handleOutside);
-      return () => window.removeEventListener('click', handleOutside);
-    }
-  }, [showMoreMenu, showSubspaceMenu]);
+
+    // Use mousedown in capture phase so it immediately triggers on any click
+    // even over the canvas, nodes, or elements that call stopPropagation
+    window.addEventListener('mousedown', handleOutsideClick, true);
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('mousedown', handleOutsideClick, true);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [
+    showAddMenu,
+    showStudiosMenu,
+    showPresetMenu,
+    showMoreMenu,
+    showSubspaceMenu,
+    showCustomizeMenu
+  ]);
 
   const moreFeatures = TOOLBAR_ITEMS.filter(item => !visibleToolbarIds.includes(item.id));
   const hasMoreAlert = (
@@ -245,7 +265,7 @@ export default function Navbar({
       {/* Center / Action Toolbar */}
       <div className="flex items-center gap-2">
         {/* + Add Node Dropdown */}
-        <div className="relative">
+        <div className="relative add-menu-container">
           <button
             onClick={() => {
               setShowAddMenu(!showAddMenu);
@@ -253,6 +273,7 @@ export default function Navbar({
               setShowStudiosMenu(false);
               setShowPresetMenu(false);
               setShowMoreMenu(false);
+              setShowCustomizeMenu(false);
             }}
             className="sym-btn-primary px-3 py-1.5 rounded-lg text-[13px] flex items-center gap-1.5"
           >
@@ -362,7 +383,7 @@ export default function Navbar({
 
         {/* 4 Studios Dropdown */}
         {visibleToolbarIds.includes('studios') && (
-          <div className="relative">
+          <div className="relative studios-menu-container">
             <button
               onClick={() => {
                 setShowStudiosMenu(!showStudiosMenu);
@@ -370,6 +391,7 @@ export default function Navbar({
                 setShowAddMenu(false);
                 setShowPresetMenu(false);
                 setShowMoreMenu(false);
+                setShowCustomizeMenu(false);
               }}
               className="sym-btn-ghost px-2.5 py-1.5 rounded-lg text-[13px] flex items-center gap-1.5"
               title="Open Symvibe Studios (Code, Diagram, Document, Markdown Vault)"
@@ -439,7 +461,7 @@ export default function Navbar({
 
         {/* Layout Presets Dropdown */}
         {visibleToolbarIds.includes('presets') && (
-          <div className="relative">
+          <div className="relative preset-menu-container">
             <button
               onClick={() => {
                 setShowPresetMenu(!showPresetMenu);
@@ -447,6 +469,7 @@ export default function Navbar({
                 setShowAddMenu(false);
                 setShowStudiosMenu(false);
                 setShowMoreMenu(false);
+                setShowCustomizeMenu(false);
               }}
               className="sym-btn-ghost px-2.5 py-1.5 rounded-lg text-[13px] flex items-center gap-1.5"
               title="Arrange board nodes into presets"
@@ -542,6 +565,7 @@ export default function Navbar({
                 setShowStudiosMenu(false);
                 setShowPresetMenu(false);
                 setShowMoreMenu(false);
+                setShowCustomizeMenu(false);
               }}
               className={`sym-btn-ghost px-2.5 py-1.5 rounded-lg text-[13px] flex items-center gap-1.5 ${
                 showSubspaceMenu ? 'bg-[#1F1A16] text-[#F1E9DD] border border-[rgba(241,233,221,0.15)]' : ''
@@ -657,6 +681,8 @@ export default function Navbar({
                 setShowStudiosMenu(false);
                 setShowPresetMenu(false);
                 setShowAddMenu(false);
+                setShowSubspaceMenu(false);
+                setShowCustomizeMenu(false);
               }}
               className={`sym-btn-ghost px-2 py-1.5 rounded-lg text-[13px] flex items-center gap-1 relative ${
                 showMoreMenu ? 'bg-[#1F1A16] text-[#F1E9DD] border border-[rgba(241,233,221,0.15)]' : ''
@@ -882,7 +908,7 @@ export default function Navbar({
         <div
           style={{ left: `${customMenuPos.x}px`, top: `${customMenuPos.y}px` }}
           onClick={(e) => e.stopPropagation()}
-          className="fixed z-50 min-w-[240px] bg-[#14110E]/95 backdrop-blur-xl border border-[rgba(241,233,221,0.18)] rounded-xl shadow-2xl py-2 px-2 text-xs text-[#F1E9DD] animate-in fade-in zoom-in-95 duration-100 select-none window-no-drag"
+          className="fixed z-50 min-w-[240px] bg-[#14110E]/95 backdrop-blur-xl border border-[rgba(241,233,221,0.18)] rounded-xl shadow-2xl py-2 px-2 text-xs text-[#F1E9DD] animate-in fade-in zoom-in-95 duration-100 select-none window-no-drag customize-menu-container"
         >
           <div className="px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider text-[#8B7E72] border-b border-[rgba(241,233,221,0.06)] mb-1.5 flex items-center justify-between">
             <span>Customize Top Bar</span>

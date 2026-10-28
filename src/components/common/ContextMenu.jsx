@@ -60,10 +60,10 @@ export default function ContextMenu({
       if (e.key === 'Escape') onClose();
     };
 
-    window.addEventListener('mousedown', handleOutsideClick);
+    window.addEventListener('mousedown', handleOutsideClick, true);
     window.addEventListener('keydown', handleKeyDown);
     return () => {
-      window.removeEventListener('mousedown', handleOutsideClick);
+      window.removeEventListener('mousedown', handleOutsideClick, true);
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [onClose]);
