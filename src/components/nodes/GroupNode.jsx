@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { 
   LayoutGrid, 
-  ChevronDown, 
-  ChevronUp, 
   X, 
   Layers, 
   Settings2,
@@ -30,7 +28,6 @@ export default function GroupNode({
   const [title, setTitle] = useState(node.title || 'Subspace Group');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const color = node.data?.color || '#A855F7';
-  const isCollapsed = node.data?.collapsed || false;
   const groupType = node.data?.groupType || 'fitted'; // 'fitted' | 'free'
 
   // Member nodes can be determined either by node.data.memberNodeIds or n.groupId
@@ -43,16 +40,6 @@ export default function GroupNode({
     onUpdate?.({
       ...node,
       title
-    });
-  };
-
-  const handleToggleCollapse = () => {
-    onUpdate?.({
-      ...node,
-      data: {
-        ...(node.data || {}),
-        collapsed: !isCollapsed
-      }
     });
   };
 
@@ -132,14 +119,6 @@ export default function GroupNode({
           </div>
 
           <button
-            onClick={handleToggleCollapse}
-            className="p-1 rounded text-[#8B7E72] hover:text-[#CDC2B3] hover:bg-white/5 transition"
-            title={isCollapsed ? "Expand Subspace" : "Collapse Subspace"}
-          >
-            {isCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
-          </button>
-
-          <button
             onClick={() => onClose?.(node.id)}
             className="p-1 rounded text-[#8B7E72] hover:text-rose-400 hover:bg-rose-500/10 transition"
             title="Delete Subspace"
@@ -160,16 +139,7 @@ export default function GroupNode({
           }}
         />
 
-        {isCollapsed ? (
-          <div className="flex-1 flex flex-col items-center justify-center p-4 text-center">
-            <span className="text-xs text-[#CDC2B3] font-medium mb-1">
-              Subspace Minimized ({memberNodes.length} nodes grouped)
-            </span>
-            <span className="text-[11px] text-[#8B7E72]">
-              Drag this card to move all grouped nodes together across the canvas.
-            </span>
-          </div>
-        ) : memberNodes.length === 0 ? (
+        {memberNodes.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center p-6 text-center border border-dashed border-[rgba(241,233,221,0.06)] rounded-xl m-2">
             {groupType === 'fitted' ? (
               <>
