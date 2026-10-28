@@ -49,25 +49,47 @@ export default function StickyNote({
     setIsEditing(false);
   };
 
-  // Dynamic font size based on sticky note dimensions and content length
+  // Dynamic font size that scales ~3x and fills the sticky note like a bold Sharpie marker
   const calculateDynamicFontSize = () => {
-    const dimensionFactor = Math.min(width / 14, height / 10);
-    const textLen = (text || '').length;
+    const cleanText = (text || '').trim();
+    const availableWidth = Math.max(80, width - 24);
+    const availableHeight = Math.max(60, height - 38);
+    const availableArea = availableWidth * availableHeight;
 
-    let size = Math.round(dimensionFactor);
-    if (textLen > 180) {
-      size = Math.max(10, size - 4);
-    } else if (textLen > 90) {
-      size = Math.max(10, size - 2);
-    } else if (textLen < 25 && size > 12) {
-      size = Math.min(26, size + 2);
+    if (!cleanText) {
+      // Empty / placeholder state: comfortably large (~3x the previous 11px)
+      const emptyBase = Math.round(Math.min(availableWidth / 7.5, availableHeight / 4));
+      return Math.max(16, Math.min(32, emptyBase));
     }
 
-    return Math.max(10, Math.min(26, size));
+    const charCount = cleanText.length;
+    const words = cleanText.split(/\s+/);
+    const longestWord = Math.max(...words.map(w => w.length), 1);
+    const explicitLines = cleanText.split('\n');
+
+    // 1. Area-based sizing: text fills ~75% of the sticky note interior
+    const areaTarget = Math.sqrt((availableArea * 0.75) / (charCount * 0.60));
+
+    // 2. Width constraint based on the longest continuous word
+    const wordWidthLimit = availableWidth / (longestWord * 0.60);
+
+    // 3. Height constraint based on line wrap estimate
+    const estCharsPerLine = Math.max(1, Math.floor(availableWidth / Math.max(10, areaTarget * 0.55)));
+    const estWrappedLines = Math.max(explicitLines.length, Math.ceil(charCount / estCharsPerLine));
+    const heightLimit = availableHeight / (estWrappedLines * 1.25);
+
+    // Target size combines area, width, and height limits
+    const rawTarget = Math.min(areaTarget, wordWidthLimit, heightLimit);
+
+    // Dynamic bounds: min 14px, up to 52px for bold notes
+    const minSize = 14;
+    const maxSize = Math.min(52, Math.round(availableHeight * 0.55));
+
+    return Math.max(minSize, Math.min(maxSize, Math.round(rawTarget)));
   };
 
   const fontSize = calculateDynamicFontSize();
-  const lineHeight = Math.round(fontSize * 1.35);
+  const lineHeight = Math.round(fontSize * 1.25);
 
   // Drag tape header to move sticky note anywhere on the node
   const handleDragStart = (e) => {
@@ -197,7 +219,7 @@ export default function StickyNote({
       {/* Note Content with dynamic auto-scaled font size */}
       <div 
         onClick={() => setIsEditing(true)}
-        className="flex-1 cursor-text overflow-y-auto overflow-x-hidden pr-0.5"
+        className="flex-1 cursor-text overflow-y-auto overflow-x-hidden pr-0.5 flex flex-col justify-center"
       >
         {isEditing ? (
           <textarea
@@ -214,20 +236,22 @@ export default function StickyNote({
             style={{ 
               color: colorScheme.text,
               fontSize: `${fontSize}px`,
-              lineHeight: `${lineHeight}px`
+              lineHeight: `${lineHeight}px`,
+              fontWeight: 700
             }}
-            className="w-full h-full bg-transparent resize-none font-sans font-medium focus:outline-none placeholder-black/40"
+            className="w-full h-full bg-transparent resize-none font-sans font-bold focus:outline-none placeholder-black/30"
           />
         ) : (
           <p 
             style={{ 
               color: colorScheme.text,
               fontSize: `${fontSize}px`,
-              lineHeight: `${lineHeight}px`
+              lineHeight: `${lineHeight}px`,
+              fontWeight: 700
             }}
-            className="font-sans font-medium whitespace-pre-wrap break-words"
+            className="font-sans font-bold whitespace-pre-wrap break-words tracking-tight"
           >
-            {text || <span className="opacity-40 italic">Empty sticky note…</span>}
+            {text || <span className="opacity-40 italic font-medium">Empty sticky note…</span>}
           </p>
         )}
       </div>
