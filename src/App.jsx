@@ -77,9 +77,13 @@ export default function App() {
     setWorkspaces(prev => {
       const updated = prev.map(w => {
         if (w.id === activeWorkspaceId) {
+          const closingNode = w.nodes.find(n => n.id === nodeId);
+          const isGroup = closingNode?.type === 'group';
           return {
             ...w,
-            nodes: w.nodes.filter(n => n.id !== nodeId)
+            nodes: w.nodes
+              .filter(n => n.id !== nodeId)
+              .map(n => (isGroup && n.groupId === nodeId) ? { ...n, groupId: null, snapSlot: null } : n)
           };
         }
         return w;
@@ -339,12 +343,19 @@ export default function App() {
     });
   };
 
-  const handleAddSubspace = () => {
-    const groupCount = (activeWorkspace?.nodes || []).filter(n => n.type === 'group').length + 1;
+  const handleAddSubspace = (subspaceType = 'fitted') => {
+    const isFitted = subspaceType === 'fitted';
+    const existingCount = (activeWorkspace?.nodes || []).filter(n => n.type === 'group').length + 1;
+    const title = isFitted ? `Fitted Subspace ${existingCount}` : `Free Subspace ${existingCount}`;
+    const color = isFitted ? '#A855F7' : '#FF8038';
+
     handleAddNode('group', {
-      title: `Subspace ${groupCount}`,
+      title,
+      width: isFitted ? 960 : 860,
+      height: isFitted ? 640 : 560,
       data: {
-        color: '#A855F7',
+        groupType: subspaceType, // 'fitted' | 'free'
+        color,
         collapsed: false,
         memberNodeIds: []
       }

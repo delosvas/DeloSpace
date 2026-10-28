@@ -15,7 +15,9 @@ import {
   Maximize,
   Edit2,
   Trash2,
-  Palette
+  Palette,
+  Monitor,
+  Move
 } from 'lucide-react';
 
 const STICKY_COLORS = [
@@ -204,11 +206,19 @@ export default function ContextMenu({
           </button>
 
           <button
-            onClick={() => { onAddSubspace?.(); onClose(); }}
+            onClick={() => { onAddSubspace?.('fitted'); onClose(); }}
             className="w-full px-3 py-1.5 hover:bg-white/10 flex items-center gap-2 text-left text-[#F1E9DD] hover:text-white transition"
           >
-            <LayoutGrid size={13} className="text-[#A855F7]" />
-            <span>New Subspace (Group)</span>
+            <Monitor size={13} className="text-[#A855F7]" />
+            <span>New Fitted Subspace (Screen)</span>
+          </button>
+
+          <button
+            onClick={() => { onAddSubspace?.('free'); onClose(); }}
+            className="w-full px-3 py-1.5 hover:bg-white/10 flex items-center gap-2 text-left text-[#F1E9DD] hover:text-white transition"
+          >
+            <Move size={13} className="text-[#FF8038]" />
+            <span>New Free Subspace (Group)</span>
           </button>
 
           <button

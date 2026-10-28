@@ -15,6 +15,114 @@ import StickyNote from './common/StickyNote';
 import InkLayer from './InkLayer';
 import Minimap from './Minimap';
 
+export const SUBSPACE_LAYOUT = {
+  headerHeight: 44,
+  padding: 10,
+  gap: 8,
+  minWidth: 520,
+  minHeight: 380
+};
+
+export function calculateSlotRect(group, slot) {
+  const { headerHeight, padding, gap } = SUBSPACE_LAYOUT;
+  const usableX = group.x + padding;
+  const usableY = group.y + headerHeight + padding;
+  const usableW = Math.max(260, group.width - padding * 2);
+  const usableH = Math.max(200, group.height - headerHeight - padding * 2);
+
+  const halfW = Math.max(120, Math.round((usableW - gap) / 2));
+  const halfH = Math.max(90, Math.round((usableH - gap) / 2));
+
+  switch (slot) {
+    case 'left-half':
+      return {
+        x: usableX,
+        y: usableY,
+        width: halfW,
+        height: usableH,
+        label: 'Left Half (1/2)'
+      };
+    case 'right-half':
+      return {
+        x: usableX + halfW + gap,
+        y: usableY,
+        width: halfW,
+        height: usableH,
+        label: 'Right Half (1/2)'
+      };
+    case 'top-left-quarter':
+      return {
+        x: usableX,
+        y: usableY,
+        width: halfW,
+        height: halfH,
+        label: 'Top-Left (1/4)'
+      };
+    case 'top-right-quarter':
+      return {
+        x: usableX + halfW + gap,
+        y: usableY,
+        width: halfW,
+        height: halfH,
+        label: 'Top-Right (1/4)'
+      };
+    case 'bottom-left-quarter':
+      return {
+        x: usableX,
+        y: usableY + halfH + gap,
+        width: halfW,
+        height: halfH,
+        label: 'Bottom-Left (1/4)'
+      };
+    case 'bottom-right-quarter':
+      return {
+        x: usableX + halfW + gap,
+        y: usableY + halfH + gap,
+        width: halfW,
+        height: halfH,
+        label: 'Bottom-Right (1/4)'
+      };
+    case 'full':
+    default:
+      return {
+        x: usableX,
+        y: usableY,
+        width: usableW,
+        height: usableH,
+        label: 'Full Screen'
+      };
+  }
+}
+
+export function getSubspaceSnapSlot(group, cursorX, cursorY) {
+  if (
+    cursorX < group.x ||
+    cursorX > group.x + group.width ||
+    cursorY < group.y ||
+    cursorY > group.y + group.height
+  ) {
+    return null;
+  }
+
+  const normX = (cursorX - group.x) / group.width;
+  const normY = (cursorY - group.y) / group.height;
+
+  // Top edge middle zone (20% to 80% horizontal, top 22%) -> Full screen
+  if (normY < 0.22 && normX >= 0.2 && normX <= 0.8) {
+    return 'full';
+  }
+
+  if (normX < 0.5) {
+    if (normY < 0.35) return 'top-left-quarter';
+    if (normY > 0.65) return 'bottom-left-quarter';
+    return 'left-half';
+  } else {
+    if (normY < 0.35) return 'top-right-quarter';
+    if (normY > 0.65) return 'bottom-right-quarter';
+    return 'right-half';
+  }
+}
+
 export default function Canvas({
   workspace,
   onCloseNode,
@@ -46,6 +154,13 @@ export default function Canvas({
   const [resizeStart, setResizeStart] = useState({ w: 0, h: 0, mouseX: 0, mouseY: 0 });
 
   const [maximizedNodeId, setMaximizedNodeId] = useState(null);
+
+  // Live ghost snap preview for Fitted Subspaces
+  const [snapPreview, setSnapPreview] = useState(null);
+  const snapPreviewRef = useRef(null);
+  useEffect(() => {
+    snapPreviewRef.current = snapPreview;
+  }, [snapPreview]);
 
   // Universal Context Menu state
   const [contextMenu, setContextMenu] = useState({
@@ -132,6 +247,8 @@ export default function Canvas({
     } else if (draggingNodeId) {
       const newX = Math.round((e.clientX - panX) / zoom - dragOffset.x);
       const newY = Math.round((e.clientY - panY) / zoom - dragOffset.y);
+      const cursorX = (e.clientX - panX) / zoom;
+      const cursorY = (e.clientY - panY) / zoom;
 
       const targetNode = workspace.nodes.find(n => n.id === draggingNodeId);
       if (targetNode?.type === 'group') {
@@ -159,51 +276,139 @@ export default function Canvas({
         } else {
           onUpdateNode?.({ id: draggingNodeId, x: newX, y: newY });
         }
+        setSnapPreview(null);
       } else {
         onUpdateNode?.({
           id: draggingNodeId,
           x: newX,
           y: newY
         });
+
+        // Detect snap preview over any fitted subspace
+        const fittedGroups = workspace.nodes.filter(n => 
+          n.type === 'group' && n.data?.groupType === 'fitted' && n.id !== draggingNodeId
+        );
+
+        let activeSnap = null;
+        for (const fg of fittedGroups) {
+          const slot = getSubspaceSnapSlot(fg, cursorX, cursorY);
+          if (slot) {
+            const rect = calculateSlotRect(fg, slot);
+            activeSnap = {
+              groupId: fg.id,
+              slot,
+              rect,
+              color: fg.data?.color || '#A855F7'
+            };
+            break;
+          }
+        }
+        setSnapPreview(activeSnap);
       }
     } else if (resizingNodeId) {
       const deltaX = (e.clientX - resizeStart.mouseX) / zoom;
       const deltaY = (e.clientY - resizeStart.mouseY) / zoom;
 
-      const newW = Math.max(380, resizeStart.w + deltaX);
-      const newH = Math.max(260, resizeStart.h + deltaY);
-      onUpdateNode?.({
-        id: resizingNodeId,
-        width: Math.round(newW),
-        height: Math.round(newH)
-      });
+      const targetNode = workspace.nodes.find(n => n.id === resizingNodeId);
+      const isGroup = targetNode?.type === 'group';
+      const minW = isGroup ? SUBSPACE_LAYOUT.minWidth : 380;
+      const minH = isGroup ? SUBSPACE_LAYOUT.minHeight : 260;
+
+      const newW = Math.max(minW, resizeStart.w + deltaX);
+      const newH = Math.max(minH, resizeStart.h + deltaY);
+
+      if (isGroup && targetNode.data?.groupType === 'fitted') {
+        const updatedGroup = {
+          ...targetNode,
+          width: Math.round(newW),
+          height: Math.round(newH)
+        };
+
+        const memberNodes = workspace.nodes.filter(n => n.id !== targetNode.id && n.groupId === targetNode.id);
+        const updates = [{
+          id: resizingNodeId,
+          width: Math.round(newW),
+          height: Math.round(newH)
+        }];
+
+        memberNodes.forEach(m => {
+          if (m.snapSlot) {
+            const slotRect = calculateSlotRect(updatedGroup, m.snapSlot);
+            updates.push({
+              id: m.id,
+              x: slotRect.x,
+              y: slotRect.y,
+              width: slotRect.width,
+              height: slotRect.height
+            });
+          }
+        });
+
+        if (onUpdateNodesBatch) {
+          onUpdateNodesBatch(updates);
+        } else {
+          updates.forEach(u => onUpdateNode?.(u));
+        }
+      } else {
+        onUpdateNode?.({
+          id: resizingNodeId,
+          width: Math.round(newW),
+          height: Math.round(newH)
+        });
+      }
     }
   };
 
   const handleMouseUp = () => {
     if (draggingNodeId) {
       const draggedNode = workspace.nodes.find(n => n.id === draggingNodeId);
+      const activeSnap = snapPreviewRef.current;
+
       if (draggedNode && draggedNode.type !== 'group') {
-        const centerX = draggedNode.x + draggedNode.width / 2;
-        const centerY = draggedNode.y + draggedNode.height / 2;
+        if (activeSnap) {
+          // Snapped into fitted subspace slot!
+          onUpdateNode?.({
+            id: draggedNode.id,
+            x: activeSnap.rect.x,
+            y: activeSnap.rect.y,
+            width: activeSnap.rect.width,
+            height: activeSnap.rect.height,
+            groupId: activeSnap.groupId,
+            snapSlot: activeSnap.slot
+          });
+        } else {
+          const centerX = draggedNode.x + draggedNode.width / 2;
+          const centerY = draggedNode.y + draggedNode.height / 2;
 
-        const groupNodes = workspace.nodes.filter(n => n.type === 'group' && n.id !== draggedNode.id);
-        const targetGroup = groupNodes.find(g => 
-          centerX >= g.x && centerX <= g.x + g.width &&
-          centerY >= g.y && centerY <= g.y + g.height
-        );
+          const groupNodes = workspace.nodes.filter(n => n.type === 'group' && n.id !== draggedNode.id);
+          const targetGroup = groupNodes.find(g => 
+            centerX >= g.x && centerX <= g.x + g.width &&
+            centerY >= g.y && centerY <= g.y + g.height
+          );
 
-        if (targetGroup) {
-          if (draggedNode.groupId !== targetGroup.id) {
-            onUpdateNode?.({ id: draggedNode.id, groupId: targetGroup.id });
+          if (targetGroup) {
+            if (targetGroup.data?.groupType === 'free') {
+              if (draggedNode.groupId !== targetGroup.id) {
+                onUpdateNode?.({
+                  id: draggedNode.id,
+                  groupId: targetGroup.id,
+                  snapSlot: null
+                });
+              }
+            }
+          } else if (draggedNode.groupId) {
+            // Dragged outside all groups -> Undock!
+            onUpdateNode?.({
+              id: draggedNode.id,
+              groupId: null,
+              snapSlot: null
+            });
           }
-        } else if (draggedNode.groupId) {
-          // Unlink if dragged outside all groups
-          onUpdateNode?.({ id: draggedNode.id, groupId: null });
         }
       }
     }
 
+    setSnapPreview(null);
     setIsPanning(false);
     setDraggingNodeId(null);
     setResizingNodeId(null);
@@ -562,6 +767,33 @@ export default function Canvas({
           transform: `translate(${panX}px, ${panY}px) scale(${zoom})`
         }}
       >
+        {/* Fitted Subspace Live Ghost Snap Preview Overlay */}
+        {snapPreview && (
+          <div
+            style={{
+              transform: `translate(${snapPreview.rect.x}px, ${snapPreview.rect.y}px)`,
+              width: `${snapPreview.rect.width}px`,
+              height: `${snapPreview.rect.height}px`,
+              borderColor: snapPreview.color || '#A855F7',
+              backgroundColor: `${snapPreview.color || '#A855F7'}15`,
+              boxShadow: `0 0 30px ${snapPreview.color || '#A855F7'}35`
+            }}
+            className="absolute rounded-2xl border-2 border-dashed pointer-events-none z-30 transition-all duration-75 flex items-center justify-center animate-in fade-in zoom-in-95 backdrop-blur-[2px]"
+          >
+            <div 
+              style={{
+                backgroundColor: '#0E0C0Aee',
+                borderColor: `${snapPreview.color || '#A855F7'}70`,
+                color: snapPreview.color || '#A855F7'
+              }}
+              className="px-3.5 py-1.5 rounded-xl border backdrop-blur-md shadow-2xl flex items-center gap-2 text-xs font-semibold font-mono tracking-wide"
+            >
+              <span className="w-2.5 h-2.5 rounded-full animate-ping" style={{ backgroundColor: snapPreview.color || '#A855F7' }} />
+              <span>Snap: {snapPreview.rect.label}</span>
+            </div>
+          </div>
+        )}
+
         {/* Render group nodes first so they appear below individual cards */}
         {[...workspace.nodes].sort((a, b) => {
           if (a.type === 'group' && b.type !== 'group') return -1;
@@ -606,14 +838,16 @@ export default function Canvas({
                 />
               ))}
 
-              {/* Resize Handle on bottom right */}
-              <div 
-                onMouseDown={(e) => handleNodeResizeStart(node.id, e)}
-                className="absolute -bottom-1 -right-1 w-4 h-4 cursor-se-resize z-20 flex items-center justify-center opacity-40 group-hover:opacity-100 transition"
-                title="Drag to resize"
-              >
-                <div className="w-2 h-2 border-r-2 border-b-2 border-[#FF8038]" />
-              </div>
+              {/* Resize Handle on bottom right (disabled if docked in Fitted Subspace) */}
+              {(!node.groupId || !node.snapSlot) && (
+                <div 
+                  onMouseDown={(e) => handleNodeResizeStart(node.id, e)}
+                  className="absolute -bottom-1 -right-1 w-4 h-4 cursor-se-resize z-20 flex items-center justify-center opacity-40 group-hover:opacity-100 transition"
+                  title="Drag to resize"
+                >
+                  <div className="w-2 h-2 border-r-2 border-b-2 border-[#FF8038]" />
+                </div>
+              )}
             </div>
           );
         })}

@@ -6,7 +6,10 @@ import {
   X, 
   Layers, 
   Settings2,
-  FolderOpen
+  FolderOpen,
+  Monitor,
+  Move,
+  Maximize2
 } from 'lucide-react';
 
 const GROUP_COLORS = [
@@ -28,6 +31,7 @@ export default function GroupNode({
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const color = node.data?.color || '#A855F7';
   const isCollapsed = node.data?.collapsed || false;
+  const groupType = node.data?.groupType || 'fitted'; // 'fitted' | 'free'
 
   // Member nodes can be determined either by node.data.memberNodeIds or n.groupId
   const memberNodes = allNodes.filter(n => 
@@ -79,8 +83,9 @@ export default function GroupNode({
           <div 
             style={{ backgroundColor: `${color}30`, color: color }}
             className="p-1 rounded-lg"
+            title={groupType === 'fitted' ? 'Fitted Subspace Screen (Smart Snap & Auto-Scale)' : 'Free Subspace (Freeform Container)'}
           >
-            <LayoutGrid size={15} />
+            {groupType === 'fitted' ? <Monitor size={15} /> : <Move size={15} />}
           </div>
 
           {isEditingTitle ? (
@@ -107,7 +112,7 @@ export default function GroupNode({
             style={{ backgroundColor: `${color}25`, color: color }}
             className="px-2 py-0.2 rounded-full text-[10px] font-mono font-medium"
           >
-            {memberNodes.length} {memberNodes.length === 1 ? 'node' : 'nodes'}
+            {groupType === 'fitted' ? 'Fitted Screen' : 'Freeform'} · {memberNodes.length} {memberNodes.length === 1 ? 'node' : 'nodes'}
           </span>
         </div>
 
@@ -166,19 +171,44 @@ export default function GroupNode({
           </div>
         ) : memberNodes.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center p-6 text-center border border-dashed border-[rgba(241,233,221,0.06)] rounded-xl m-2">
-            <FolderOpen size={24} style={{ color }} className="opacity-40 mb-2" />
-            <span className="text-xs text-[#CDC2B3] font-medium">
-              Subspace Ready
-            </span>
-            <p className="text-[11px] text-[#8B7E72] mt-1 max-w-[280px]">
-              Drag any agent terminal or note inside here. Nodes will snap in place and move together when you drag this subspace.
-            </p>
+            {groupType === 'fitted' ? (
+              <>
+                <Monitor size={28} style={{ color }} className="opacity-40 mb-2" />
+                <span className="text-xs text-[#CDC2B3] font-medium">
+                  Fitted Virtual Screen Ready
+                </span>
+                <p className="text-[11px] text-[#8B7E72] mt-1 max-w-[320px]">
+                  Drag any terminal or node near the <strong>sides for 1/2 split</strong> or <strong>corners for 1/4 quadrant</strong>. Resizing this screen auto-scales all docked nodes proportionally!
+                </p>
+                <div className="mt-3 flex items-center gap-2 text-[10px] font-mono text-[#8B7E72] opacity-75">
+                  <span className="px-1.5 py-0.5 rounded bg-black/40 border border-white/5">1/2 Left</span>
+                  <span>•</span>
+                  <span className="px-1.5 py-0.5 rounded bg-black/40 border border-white/5">1/2 Right</span>
+                  <span>•</span>
+                  <span className="px-1.5 py-0.5 rounded bg-black/40 border border-white/5">1/4 Corners</span>
+                  <span>•</span>
+                  <span className="px-1.5 py-0.5 rounded bg-black/40 border border-white/5">Full</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <FolderOpen size={26} style={{ color }} className="opacity-40 mb-2" />
+                <span className="text-xs text-[#CDC2B3] font-medium">
+                  Freeform Subspace Ready
+                </span>
+                <p className="text-[11px] text-[#8B7E72] mt-1 max-w-[300px]">
+                  Drop any nodes inside to group them. Nodes keep their custom sizes, and moving this subspace moves all of them together.
+                </p>
+              </>
+            )}
           </div>
         ) : (
           <div className="flex-1 flex flex-col justify-end p-2 pointer-events-none">
             <div className="flex items-center gap-1.5 text-[10px] font-mono text-[#8B7E72] bg-[#14110E]/80 px-2.5 py-1 rounded-md self-start border border-[rgba(241,233,221,0.05)]">
               <Layers size={11} style={{ color }} />
-              <span>Drag Subspace header to move all {memberNodes.length} nodes together</span>
+              <span>
+                {groupType === 'fitted' ? 'Fitted Screen' : 'Free Subspace'} · {memberNodes.length} active docked
+              </span>
             </div>
           </div>
         )}

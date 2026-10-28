@@ -23,7 +23,9 @@ import {
   SlidersHorizontal,
   MoreHorizontal,
   Check,
-  X
+  X,
+  Monitor,
+  Move
 } from 'lucide-react';
 import { getStoredAgentTerminals } from './AgentConfigModal';
 
@@ -98,6 +100,7 @@ export default function Navbar({
   const [showStudiosMenu, setShowStudiosMenu] = useState(false);
   const [showPresetMenu, setShowPresetMenu] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showSubspaceMenu, setShowSubspaceMenu] = useState(false);
 
   const [showCustomizeMenu, setShowCustomizeMenu] = useState(false);
   const [customMenuPos, setCustomMenuPos] = useState({ x: 0, y: 0 });
@@ -124,6 +127,7 @@ export default function Navbar({
     });
     setShowCustomizeMenu(true);
     setShowMoreMenu(false);
+    setShowSubspaceMenu(false);
     setShowAddMenu(false);
     setShowStudiosMenu(false);
     setShowPresetMenu(false);
@@ -137,6 +141,10 @@ export default function Navbar({
       if (e.key === 'Escape') {
         setShowCustomizeMenu(false);
         setShowMoreMenu(false);
+        setShowSubspaceMenu(false);
+        setShowAddMenu(false);
+        setShowStudiosMenu(false);
+        setShowPresetMenu(false);
       }
     };
     if (showCustomizeMenu) {
@@ -154,12 +162,15 @@ export default function Navbar({
       if (!e.target.closest('.more-menu-container')) {
         setShowMoreMenu(false);
       }
+      if (!e.target.closest('.subspace-menu-container')) {
+        setShowSubspaceMenu(false);
+      }
     };
-    if (showMoreMenu) {
+    if (showMoreMenu || showSubspaceMenu) {
       window.addEventListener('click', handleOutside);
       return () => window.removeEventListener('click', handleOutside);
     }
-  }, [showMoreMenu]);
+  }, [showMoreMenu, showSubspaceMenu]);
 
   const moreFeatures = TOOLBAR_ITEMS.filter(item => !visibleToolbarIds.includes(item.id));
   const hasMoreAlert = (
@@ -238,8 +249,10 @@ export default function Navbar({
           <button
             onClick={() => {
               setShowAddMenu(!showAddMenu);
+              setShowSubspaceMenu(false);
               setShowStudiosMenu(false);
               setShowPresetMenu(false);
+              setShowMoreMenu(false);
             }}
             className="sym-btn-primary px-3 py-1.5 rounded-lg text-[13px] flex items-center gap-1.5"
           >
@@ -301,11 +314,18 @@ export default function Navbar({
                   Workspace Tiles
                 </div>
                 <button
-                  onClick={() => { onAddSubspace?.(); setShowAddMenu(false); }}
+                  onClick={() => { onAddSubspace?.('fitted'); setShowAddMenu(false); }}
                   className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-[#1F1A16] flex items-center gap-2 text-[12px] text-[#F1E9DD]"
                 >
-                  <LayoutGrid size={14} className="text-[#A855F7]" />
-                  <span>Subspace Group Container</span>
+                  <Monitor size={14} className="text-[#A855F7]" />
+                  <span>Fitted Subspace (Virtual Screen)</span>
+                </button>
+                <button
+                  onClick={() => { onAddSubspace?.('free'); setShowAddMenu(false); }}
+                  className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-[#1F1A16] flex items-center gap-2 text-[12px] text-[#F1E9DD]"
+                >
+                  <Move size={14} className="text-[#FF8038]" />
+                  <span>Free Subspace (Freeform Group)</span>
                 </button>
                 <button
                   onClick={() => { onAddNode('webtile', { title: 'Local Preview' }); setShowAddMenu(false); }}
@@ -346,6 +366,7 @@ export default function Navbar({
             <button
               onClick={() => {
                 setShowStudiosMenu(!showStudiosMenu);
+                setShowSubspaceMenu(false);
                 setShowAddMenu(false);
                 setShowPresetMenu(false);
                 setShowMoreMenu(false);
@@ -422,6 +443,7 @@ export default function Navbar({
             <button
               onClick={() => {
                 setShowPresetMenu(!showPresetMenu);
+                setShowSubspaceMenu(false);
                 setShowAddMenu(false);
                 setShowStudiosMenu(false);
                 setShowMoreMenu(false);
@@ -510,16 +532,77 @@ export default function Navbar({
           </button>
         )}
 
-        {/* Subspace Group Container */}
+        {/* Subspace Group Dropdown */}
         {visibleToolbarIds.includes('subspace') && (
-          <button
-            onClick={onAddSubspace}
-            className="sym-btn-ghost px-2.5 py-1.5 rounded-lg text-[13px] flex items-center gap-1.5"
-            title="Create Subspace Group (organize & move nodes together like desktop icons)"
-          >
-            <LayoutGrid size={14} className="text-[#A855F7]" />
-            <span className="hidden lg:inline">Subspace</span>
-          </button>
+          <div className="relative subspace-menu-container">
+            <button
+              onClick={() => {
+                setShowSubspaceMenu(!showSubspaceMenu);
+                setShowAddMenu(false);
+                setShowStudiosMenu(false);
+                setShowPresetMenu(false);
+                setShowMoreMenu(false);
+              }}
+              className={`sym-btn-ghost px-2.5 py-1.5 rounded-lg text-[13px] flex items-center gap-1.5 ${
+                showSubspaceMenu ? 'bg-[#1F1A16] text-[#F1E9DD] border border-[rgba(241,233,221,0.15)]' : ''
+              }`}
+              title="Create Subspace (Freeform or Fitted Virtual Screen)"
+            >
+              <LayoutGrid size={14} className="text-[#A855F7]" />
+              <span className="hidden lg:inline">Subspace</span>
+              <ChevronDown size={11} className={`text-[#8B7E72] transition ${showSubspaceMenu ? 'rotate-180' : ''}`} />
+            </button>
+
+            {showSubspaceMenu && (
+              <div className="absolute top-full mt-1.5 left-0 w-64 sym-glass rounded-xl p-1.5 border border-[rgba(241,233,221,0.14)] shadow-2xl z-50 window-no-drag animate-in fade-in zoom-in-95 duration-100">
+                <div className="px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider text-[#8B7E72] border-b border-[rgba(241,233,221,0.06)] mb-1">
+                  Subspace Layout Type
+                </div>
+
+                <button
+                  onClick={() => {
+                    onAddSubspace?.('fitted');
+                    setShowSubspaceMenu(false);
+                  }}
+                  className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-[#1F1A16] flex items-start gap-2.5 text-[12px] text-[#F1E9DD] transition group"
+                >
+                  <span className="p-1.5 rounded-lg bg-[#A855F7]/20 text-[#A855F7] group-hover:scale-105 transition-transform mt-0.5">
+                    <Monitor size={15} />
+                  </span>
+                  <div>
+                    <div className="font-medium text-[#F1E9DD] flex items-center gap-1.5">
+                      <span>Fitted Subspace</span>
+                      <span className="text-[9px] px-1.5 py-0.2 rounded bg-[#A855F7]/25 text-[#D8B4FE] font-mono font-semibold">SCREEN</span>
+                    </div>
+                    <div className="text-[11px] text-[#8B7E72] mt-0.5">
+                      Virtual screen with snap zones (1/2, 1/4, 1/1) & auto-scaling
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => {
+                    onAddSubspace?.('free');
+                    setShowSubspaceMenu(false);
+                  }}
+                  className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-[#1F1A16] flex items-start gap-2.5 text-[12px] text-[#F1E9DD] transition group mt-0.5"
+                >
+                  <span className="p-1.5 rounded-lg bg-[#FF8038]/20 text-[#FF8038] group-hover:scale-105 transition-transform mt-0.5">
+                    <Move size={15} />
+                  </span>
+                  <div>
+                    <div className="font-medium text-[#F1E9DD] flex items-center gap-1.5">
+                      <span>Free Subspace</span>
+                      <span className="text-[9px] px-1.5 py-0.2 rounded bg-[#FF8038]/25 text-[#FFD8B4] font-mono font-semibold">FREEFORM</span>
+                    </div>
+                    <div className="text-[11px] text-[#8B7E72] mt-0.5">
+                      Freeform container to group & move nodes freely together
+                    </div>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
         )}
 
         {/* Quota Alarm / Resetter */}
@@ -734,14 +817,28 @@ export default function Navbar({
 
                     if (item.id === 'subspace') {
                       return (
-                        <button
-                          key="subspace"
-                          onClick={() => { onAddSubspace(); setShowMoreMenu(false); }}
-                          className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-[#1F1A16] flex items-center gap-2 text-[12px] text-[#F1E9DD] transition"
-                        >
-                          <LayoutGrid size={14} className="text-[#A855F7]" />
-                          <span>Subspace Group</span>
-                        </button>
+                        <div key="subspace" className="p-1.5 rounded-lg bg-[rgba(241,233,221,0.03)] border border-[rgba(241,233,221,0.06)] mb-1">
+                          <div className="flex items-center gap-2 px-1 text-[11px] font-medium text-[#CDC2B3] mb-1">
+                            <LayoutGrid size={13} className="text-[#A855F7]" />
+                            <span>Subspaces</span>
+                          </div>
+                          <div className="space-y-0.5">
+                            <button
+                              onClick={() => { onAddSubspace?.('fitted'); setShowMoreMenu(false); }}
+                              className="w-full text-left px-2 py-1.5 rounded hover:bg-[#1F1A16] flex items-center gap-2 text-[11px] text-[#CDC2B3] hover:text-[#F1E9DD] transition"
+                            >
+                              <Monitor size={13} className="text-[#A855F7]" />
+                              <span>Fitted Subspace (Screen)</span>
+                            </button>
+                            <button
+                              onClick={() => { onAddSubspace?.('free'); setShowMoreMenu(false); }}
+                              className="w-full text-left px-2 py-1.5 rounded hover:bg-[#1F1A16] flex items-center gap-2 text-[11px] text-[#CDC2B3] hover:text-[#F1E9DD] transition"
+                            >
+                              <Move size={13} className="text-[#FF8038]" />
+                              <span>Free Subspace (Group)</span>
+                            </button>
+                          </div>
+                        </div>
                       );
                     }
 
