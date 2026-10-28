@@ -100,7 +100,7 @@ export default function ContextMenu({
           </button>
 
           <button
-            onClick={() => { onAddStickyNote?.(targetNodeId, relativeCoords.x, relativeCoords.y); onClose(); }}
+            onClick={() => { onAddStickyNote?.(targetNodeId, relativeCoords); onClose(); }}
             className="w-full px-3 py-1.5 hover:bg-white/10 flex items-center gap-2 text-left text-[#F1E9DD] hover:text-white transition"
           >
             <StickyIcon size={13} className="text-yellow-400" />

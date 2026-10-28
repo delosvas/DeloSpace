@@ -491,12 +491,22 @@ export default function Canvas({
   const handleAddStickyNote = (nodeId, relativeCoords) => {
     const node = workspace.nodes.find(n => n.id === nodeId);
     if (!node) return;
+    const defaultW = 180;
+    const defaultH = 140;
+    const rawX = relativeCoords?.relX ?? relativeCoords?.x ?? 30;
+    const rawY = relativeCoords?.relY ?? relativeCoords?.y ?? 30;
+
+    const relX = Math.max(10, Math.min(Math.max(10, node.width - defaultW - 10), rawX));
+    const relY = Math.max(10, Math.min(Math.max(10, node.height - defaultH - 10), rawY));
+
     const newSticky = {
       id: `sticky-${Date.now()}`,
       text: '',
       color: 'yellow',
-      relX: Math.max(10, Math.min(node.width - 170, relativeCoords?.relX || 30)),
-      relY: Math.max(10, Math.min(node.height - 100, relativeCoords?.relY || 30)),
+      relX,
+      relY,
+      width: defaultW,
+      height: defaultH,
       isEditing: true
     };
     const stickyNotes = [...(node.stickyNotes || []), newSticky];
@@ -507,6 +517,24 @@ export default function Canvas({
     const node = workspace.nodes.find(n => n.id === nodeId);
     if (!node) return;
     const stickyNotes = (node.stickyNotes || []).map(s => s.id === stickyId ? { ...s, text } : s);
+    onUpdateNode?.({ id: nodeId, stickyNotes });
+  };
+
+  const handleUpdateStickyPosition = (nodeId, stickyId, relX, relY) => {
+    const node = workspace.nodes.find(n => n.id === nodeId);
+    if (!node) return;
+    const stickyNotes = (node.stickyNotes || []).map(s => 
+      s.id === stickyId ? { ...s, relX: Math.round(relX), relY: Math.round(relY) } : s
+    );
+    onUpdateNode?.({ id: nodeId, stickyNotes });
+  };
+
+  const handleUpdateStickyDimensions = (nodeId, stickyId, width, height) => {
+    const node = workspace.nodes.find(n => n.id === nodeId);
+    if (!node) return;
+    const stickyNotes = (node.stickyNotes || []).map(s => 
+      s.id === stickyId ? { ...s, width: Math.round(width), height: Math.round(height) } : s
+    );
     onUpdateNode?.({ id: nodeId, stickyNotes });
   };
 
@@ -831,8 +859,12 @@ export default function Canvas({
                   key={note.id}
                   note={note}
                   nodeId={node.id}
+                  nodeWidth={node.width}
+                  nodeHeight={node.height}
                   zoom={zoom}
                   onUpdateText={handleUpdateStickyText}
+                  onUpdatePosition={handleUpdateStickyPosition}
+                  onUpdateDimensions={handleUpdateStickyDimensions}
                   onDelete={handleDeleteSticky}
                   onContextMenu={handleStickyContextMenu}
                 />
