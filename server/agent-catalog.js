@@ -73,6 +73,34 @@ export function getAgentCatalog() {
       defaultProfileDir: path.join(os.homedir(), '.opencode')
     },
     {
+      id: 'kimi',
+      name: 'Kimi CLI',
+      binary: 'kimi',
+      installed: !!findBinary('kimi'),
+      path: findBinary('kimi'),
+      description: 'Moonshot AI terminal agent',
+      color: '#06B6D4',
+      badgeBg: 'rgba(6, 182, 212, 0.15)',
+      badgeBorder: 'rgba(6, 182, 212, 0.4)',
+      defaultCommand: 'kimi',
+      profileEnvKey: 'KIMI_HOME',
+      defaultProfileDir: path.join(os.homedir(), '.kimi')
+    },
+    {
+      id: 'deepcode',
+      name: 'DeepCode CLI',
+      binary: 'deepcode',
+      installed: !!findBinary('deepcode'),
+      path: findBinary('deepcode'),
+      description: 'DeepCode terminal assistant',
+      color: '#EC4899',
+      badgeBg: 'rgba(236, 72, 153, 0.15)',
+      badgeBorder: 'rgba(236, 72, 153, 0.4)',
+      defaultCommand: 'deepcode',
+      profileEnvKey: 'DEEPCODE_HOME',
+      defaultProfileDir: path.join(os.homedir(), '.deepcode')
+    },
+    {
       id: 'aider',
       name: 'Aider',
       binary: 'aider',

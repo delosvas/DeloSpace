@@ -9,6 +9,9 @@ import CodeNode from './nodes/CodeNode';
 import DiagramNode from './nodes/DiagramNode';
 import DocumentNode from './nodes/DocumentNode';
 import MarkdownVaultNode from './nodes/MarkdownVaultNode';
+import GroupNode from './nodes/GroupNode';
+import ContextMenu from './common/ContextMenu';
+import StickyNote from './common/StickyNote';
 import InkLayer from './InkLayer';
 import Minimap from './Minimap';
 
@@ -16,13 +19,17 @@ export default function Canvas({
   workspace,
   onCloseNode,
   onUpdateNode,
+  onUpdateNodesBatch,
   onUpdateCanvas,
   onUpdateStrokes,
   onHandoff,
   focusedNodeId,
   onClearFocus,
   isDrawingActive = false,
-  onCloseDrawing
+  onCloseDrawing,
+  onAddSubspace,
+  onAddNode,
+  onOpenQuotaAlarm
 }) {
   const containerRef = useRef(null);
   const [panX, setPanX] = useState(workspace.canvas?.panX || 0);
@@ -39,6 +46,18 @@ export default function Canvas({
   const [resizeStart, setResizeStart] = useState({ w: 0, h: 0, mouseX: 0, mouseY: 0 });
 
   const [maximizedNodeId, setMaximizedNodeId] = useState(null);
+
+  // Universal Context Menu state
+  const [contextMenu, setContextMenu] = useState({
+    isOpen: false,
+    x: 0,
+    y: 0,
+    targetType: null,
+    targetNodeId: null,
+    targetStickyId: null,
+    relativeCoords: null,
+    isMaximized: false
+  });
 
   // Sync canvas pan/zoom back to workspace canvas property ONLY (never touches nodes!)
   useEffect(() => {
@@ -111,14 +130,42 @@ export default function Canvas({
       setPanX(e.clientX - panStart.x);
       setPanY(e.clientY - panStart.y);
     } else if (draggingNodeId) {
-      const newX = (e.clientX - panX) / zoom - dragOffset.x;
-      const newY = (e.clientY - panY) / zoom - dragOffset.y;
+      const newX = Math.round((e.clientX - panX) / zoom - dragOffset.x);
+      const newY = Math.round((e.clientY - panY) / zoom - dragOffset.y);
 
-      onUpdateNode?.({
-        id: draggingNodeId,
-        x: Math.round(newX),
-        y: Math.round(newY)
-      });
+      const targetNode = workspace.nodes.find(n => n.id === draggingNodeId);
+      if (targetNode?.type === 'group') {
+        const deltaX = newX - targetNode.x;
+        const deltaY = newY - targetNode.y;
+
+        const memberNodes = workspace.nodes.filter(n => 
+          n.id !== targetNode.id && (n.groupId === targetNode.id || (targetNode.data?.memberNodeIds || []).includes(n.id))
+        );
+
+        if (memberNodes.length > 0) {
+          const updates = [
+            { id: targetNode.id, x: newX, y: newY },
+            ...memberNodes.map(m => ({
+              id: m.id,
+              x: m.x + deltaX,
+              y: m.y + deltaY
+            }))
+          ];
+          if (onUpdateNodesBatch) {
+            onUpdateNodesBatch(updates);
+          } else {
+            updates.forEach(u => onUpdateNode?.(u));
+          }
+        } else {
+          onUpdateNode?.({ id: draggingNodeId, x: newX, y: newY });
+        }
+      } else {
+        onUpdateNode?.({
+          id: draggingNodeId,
+          x: newX,
+          y: newY
+        });
+      }
     } else if (resizingNodeId) {
       const deltaX = (e.clientX - resizeStart.mouseX) / zoom;
       const deltaY = (e.clientY - resizeStart.mouseY) / zoom;
@@ -134,6 +181,29 @@ export default function Canvas({
   };
 
   const handleMouseUp = () => {
+    if (draggingNodeId) {
+      const draggedNode = workspace.nodes.find(n => n.id === draggingNodeId);
+      if (draggedNode && draggedNode.type !== 'group') {
+        const centerX = draggedNode.x + draggedNode.width / 2;
+        const centerY = draggedNode.y + draggedNode.height / 2;
+
+        const groupNodes = workspace.nodes.filter(n => n.type === 'group' && n.id !== draggedNode.id);
+        const targetGroup = groupNodes.find(g => 
+          centerX >= g.x && centerX <= g.x + g.width &&
+          centerY >= g.y && centerY <= g.y + g.height
+        );
+
+        if (targetGroup) {
+          if (draggedNode.groupId !== targetGroup.id) {
+            onUpdateNode?.({ id: draggedNode.id, groupId: targetGroup.id });
+          }
+        } else if (draggedNode.groupId) {
+          // Unlink if dragged outside all groups
+          onUpdateNode?.({ id: draggedNode.id, groupId: null });
+        }
+      }
+    }
+
     setIsPanning(false);
     setDraggingNodeId(null);
     setResizingNodeId(null);
@@ -210,6 +280,115 @@ export default function Canvas({
 
   const handleCloseNode = (nodeId) => {
     onCloseNode?.(nodeId);
+  };
+
+  // Sticky Notes CRUD
+  const handleAddStickyNote = (nodeId, relativeCoords) => {
+    const node = workspace.nodes.find(n => n.id === nodeId);
+    if (!node) return;
+    const newSticky = {
+      id: `sticky-${Date.now()}`,
+      text: '',
+      color: 'yellow',
+      relX: Math.max(10, Math.min(node.width - 170, relativeCoords?.relX || 30)),
+      relY: Math.max(10, Math.min(node.height - 100, relativeCoords?.relY || 30)),
+      isEditing: true
+    };
+    const stickyNotes = [...(node.stickyNotes || []), newSticky];
+    onUpdateNode?.({ id: nodeId, stickyNotes });
+  };
+
+  const handleUpdateStickyText = (nodeId, stickyId, text) => {
+    const node = workspace.nodes.find(n => n.id === nodeId);
+    if (!node) return;
+    const stickyNotes = (node.stickyNotes || []).map(s => s.id === stickyId ? { ...s, text } : s);
+    onUpdateNode?.({ id: nodeId, stickyNotes });
+  };
+
+  const handleChangeStickyColor = (nodeId, stickyId, color) => {
+    const node = workspace.nodes.find(n => n.id === nodeId);
+    if (!node) return;
+    const stickyNotes = (node.stickyNotes || []).map(s => s.id === stickyId ? { ...s, color } : s);
+    onUpdateNode?.({ id: nodeId, stickyNotes });
+  };
+
+  const handleDeleteSticky = (nodeId, stickyId) => {
+    const node = workspace.nodes.find(n => n.id === nodeId);
+    if (!node) return;
+    const stickyNotes = (node.stickyNotes || []).filter(s => s.id !== stickyId);
+    onUpdateNode?.({ id: nodeId, stickyNotes });
+  };
+
+  const handleEditSticky = (nodeId, stickyId) => {
+    const node = workspace.nodes.find(n => n.id === nodeId);
+    if (!node) return;
+    const stickyNotes = (node.stickyNotes || []).map(s => s.id === stickyId ? { ...s, isEditing: true } : s);
+    onUpdateNode?.({ id: nodeId, stickyNotes });
+  };
+
+  // Context Menu Event Handlers
+  const handleNodeContextMenu = (nodeId, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const node = workspace.nodes.find(n => n.id === nodeId);
+    if (!node) return;
+
+    const relX = Math.round((e.clientX - panX) / zoom - node.x);
+    const relY = Math.round((e.clientY - panY) / zoom - node.y);
+
+    setContextMenu({
+      isOpen: true,
+      x: e.clientX,
+      y: e.clientY,
+      targetType: 'node',
+      targetNodeId: nodeId,
+      relativeCoords: { relX, relY },
+      isMaximized: maximizedNodeId === nodeId
+    });
+  };
+
+  const handleStickyContextMenu = (e, nodeId, stickyId) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({
+      isOpen: true,
+      x: e.clientX,
+      y: e.clientY,
+      targetType: 'sticky',
+      targetNodeId: nodeId,
+      targetStickyId: stickyId
+    });
+  };
+
+  const handleCanvasContextMenu = (e) => {
+    if (e.target === containerRef.current || e.target.classList.contains('canvas-bg')) {
+      e.preventDefault();
+      setContextMenu({
+        isOpen: true,
+        x: e.clientX,
+        y: e.clientY,
+        targetType: 'canvas'
+      });
+    }
+  };
+
+  const handleRefreshNode = (nodeId) => {
+    onUpdateNode?.({
+      id: nodeId,
+      refreshTrigger: Date.now()
+    });
+  };
+
+  const handleDuplicateNode = (nodeId) => {
+    const node = workspace.nodes.find(n => n.id === nodeId);
+    if (!node) return;
+    const { id, ...rest } = node;
+    onAddNode?.(node.type, {
+      ...rest,
+      title: `${node.title} (Copy)`,
+      x: node.x + 40,
+      y: node.y + 40
+    });
   };
 
   const handleFitAll = () => {
@@ -333,6 +512,16 @@ export default function Canvas({
             onToggleMaximize={() => setMaximizedNodeId(isMax ? null : node.id)}
           />
         );
+      case 'group':
+        return (
+          <GroupNode 
+            node={node}
+            allNodes={workspace.nodes}
+            onUpdate={handleChildNodeUpdate}
+            onClose={handleCloseNode}
+            zoom={isMax ? 1 : zoom}
+          />
+        );
       default:
         return null;
     }
@@ -345,6 +534,7 @@ export default function Canvas({
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
+      onContextMenu={handleCanvasContextMenu}
       className={`relative w-full h-[calc(100vh-3.5rem)] overflow-hidden dot-grid select-none ${
         isDrawingActive ? 'cursor-crosshair' : isPanning ? 'cursor-grabbing' : 'cursor-default'
       }`}
@@ -372,7 +562,12 @@ export default function Canvas({
           transform: `translate(${panX}px, ${panY}px) scale(${zoom})`
         }}
       >
-        {workspace.nodes.map(node => {
+        {/* Render group nodes first so they appear below individual cards */}
+        {[...workspace.nodes].sort((a, b) => {
+          if (a.type === 'group' && b.type !== 'group') return -1;
+          if (a.type !== 'group' && b.type === 'group') return 1;
+          return 0;
+        }).map(node => {
           const isMax = maximizedNodeId === node.id;
           if (isMax) return null; // rendered in fullscreen overlay below
 
@@ -385,6 +580,7 @@ export default function Canvas({
                 width: `${node.width}px`,
                 height: `${node.height}px`
               }}
+              onContextMenu={(e) => handleNodeContextMenu(node.id, e)}
               className="canvas-node absolute pointer-events-auto group transition-shadow duration-200"
             >
               {/* Drag handle header overlay */}
@@ -396,6 +592,19 @@ export default function Canvas({
 
               {/* Node Content */}
               {renderNodeComponent(node, false)}
+
+              {/* Attached Sticky Notes */}
+              {node.stickyNotes?.map(note => (
+                <StickyNote
+                  key={note.id}
+                  note={note}
+                  nodeId={node.id}
+                  zoom={zoom}
+                  onUpdateText={handleUpdateStickyText}
+                  onDelete={handleDeleteSticky}
+                  onContextMenu={handleStickyContextMenu}
+                />
+              ))}
 
               {/* Resize Handle on bottom right */}
               <div 
@@ -420,6 +629,27 @@ export default function Canvas({
           </div>
         );
       })()}
+
+      {/* Universal Context Menu */}
+      <ContextMenu
+        contextMenu={contextMenu}
+        onClose={() => setContextMenu(prev => ({ ...prev, isOpen: false }))}
+        onRefreshNode={handleRefreshNode}
+        onAddStickyNote={handleAddStickyNote}
+        onDuplicateNode={handleDuplicateNode}
+        onToggleMaximize={(id) => setMaximizedNodeId(maximizedNodeId === id ? null : id)}
+        onCloseNode={handleCloseNode}
+        onAddSubspace={onAddSubspace}
+        onAddTerminal={(agentType, meta) => onAddNode?.('terminal', { agentType, ...meta })}
+        onAddNotes={() => onAddNode?.('notes', { title: 'Quick Notes' })}
+        onAddKanban={() => onAddNode?.('kanban', { title: 'Board' })}
+        onOpenQuotaAlarm={onOpenQuotaAlarm}
+        onResetZoom={handleResetZoom}
+        onFitAll={handleFitAll}
+        onEditSticky={handleEditSticky}
+        onChangeStickyColor={handleChangeStickyColor}
+        onDeleteSticky={handleDeleteSticky}
+      />
 
       {/* Bottom Floating Canvas Controls */}
       <div className="absolute bottom-5 left-5 z-20 flex items-center gap-2">

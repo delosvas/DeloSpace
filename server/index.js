@@ -15,6 +15,7 @@ import { ptyManager } from './pty-manager.js';
 import { getAgentCatalog } from './agent-catalog.js';
 import { getGitStatus } from './git-service.js';
 import { loadWorkspaces, saveWorkspaces, loadProjectMemory, saveProjectMemory } from './storage.js';
+import { quotaResetter } from './quota-resetter.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -100,6 +101,27 @@ app.post('/api/broadcast', (req, res) => {
     results[tid] = ptyManager.write(tid, `${prompt}\n`);
   }
   res.json({ success: true, results });
+});
+
+// Quota Alarm / Usage Resetter
+app.get('/api/quota-alarm', (req, res) => {
+  const settings = quotaResetter.getSettings();
+  res.json({ success: true, settings, warmupTime: quotaResetter.getWarmupTime() });
+});
+
+app.post('/api/quota-alarm', (req, res) => {
+  const { settings } = req.body;
+  if (!settings) {
+    return res.status(400).json({ error: 'Settings object required' });
+  }
+  const updated = quotaResetter.save(settings);
+  res.json({ success: true, settings: updated, warmupTime: quotaResetter.getWarmupTime() });
+});
+
+app.post('/api/quota-alarm/trigger', async (req, res) => {
+  const { providers } = req.body || {};
+  const result = await quotaResetter.triggerWarmup(providers);
+  res.json({ success: true, result });
 });
 
 // Git Status

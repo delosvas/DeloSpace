@@ -18,6 +18,7 @@ import {
   ShieldAlert
 } from 'lucide-react';
 import StatusBadge from '../common/StatusBadge';
+import StickyNote from '../common/StickyNote';
 import { spawnTerminal, signalTerminal, createTerminalWebSocket } from '../../services/api';
 
 const AGENT_CONFIGS = {
@@ -25,6 +26,8 @@ const AGENT_CONFIGS = {
   codex: { name: 'Codex', color: '#10B981', bg: 'rgba(16, 185, 129, 0.15)', border: 'rgba(16, 185, 129, 0.4)' },
   gemini: { name: 'Gemini CLI', color: '#3B82F6', bg: 'rgba(59, 130, 246, 0.15)', border: 'rgba(59, 130, 246, 0.4)' },
   opencode: { name: 'OpenCode', color: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.15)', border: 'rgba(139, 92, 246, 0.4)' },
+  kimi: { name: 'Kimi CLI', color: '#06B6D4', bg: 'rgba(6, 182, 212, 0.15)', border: 'rgba(6, 182, 212, 0.4)' },
+  deepcode: { name: 'DeepCode', color: '#EC4899', bg: 'rgba(236, 72, 153, 0.15)', border: 'rgba(236, 72, 153, 0.4)' },
   aider: { name: 'Aider', color: '#EC4899', bg: 'rgba(236, 72, 153, 0.15)', border: 'rgba(236, 72, 153, 0.4)' },
   zsh: { name: 'zsh', color: '#FF8038', bg: 'rgba(255, 128, 56, 0.15)', border: 'rgba(255, 128, 56, 0.4)' }
 };
@@ -55,7 +58,98 @@ export default function TerminalNode({
   const [isRecording, setIsRecording] = useState(false);
   const recognitionRef = useRef(null);
 
-  const agentConfig = AGENT_CONFIGS[node.agentType] || AGENT_CONFIGS.zsh;
+  const agentConfig = AGENT_CONFIGS[node.agentType] || {
+    name: node.title || node.agentType || 'Agent',
+    color: node.data?.color || '#FF8038',
+    bg: 'rgba(255, 128, 56, 0.15)',
+    border: 'rgba(255, 128, 56, 0.4)'
+  };
+
+  const connectWebSocket = () => {
+    if (!termInstanceRef.current) return;
+    const term = termInstanceRef.current;
+
+    if (wsRef.current) {
+      try {
+        wsRef.current.close();
+      } catch (_) {}
+      wsRef.current = null;
+    }
+
+    spawnTerminal({
+      id: node.id,
+      command: node.command || '',
+      agentType: node.agentType || 'zsh',
+      title: node.title,
+      cwd: node.cwd,
+      profile,
+      cols: term.cols,
+      rows: term.rows
+    }).then(() => {
+      const ws = createTerminalWebSocket(node.id);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === 'output') {
+            term.write(msg.data);
+          } else if (msg.type === 'history') {
+            term.write(msg.data);
+          } else if (msg.type === 'status') {
+            setStatus(msg.status);
+            onUpdate?.({ id: node.id, status: msg.status });
+          }
+        } catch {
+          term.write(event.data);
+        }
+      };
+    }).catch(err => {
+      console.warn('Failed to spawn/reconnect terminal PTY:', err);
+    });
+  };
+
+  const handleRefreshSession = () => {
+    if (termInstanceRef.current) {
+      termInstanceRef.current.write('\r\n\x1b[38;2;255;128;56m[DeloSpace]\x1b[0m Reconnecting terminal session...\r\n');
+    }
+    connectWebSocket();
+    setTimeout(() => {
+      if (fitAddonRef.current) fitAddonRef.current.fit();
+    }, 200);
+  };
+
+  // React to refresh trigger from Context Menu
+  useEffect(() => {
+    if (node.refreshTrigger) {
+      handleRefreshSession();
+    }
+  }, [node.refreshTrigger]);
+
+  // Auto-reconnect on wake-from-sleep or online status
+  useEffect(() => {
+    const handleOnline = () => {
+      handleRefreshSession();
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+          handleRefreshSession();
+        }
+      }
+    };
+
+    window.addEventListener('online', handleOnline);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   useEffect(() => {
     if (!terminalRef.current) return;
@@ -187,48 +281,14 @@ export default function TerminalNode({
     termInstanceRef.current = term;
     fitAddonRef.current = fitAddon;
 
-    // Spawn backend PTY
-    spawnTerminal({
-      id: node.id,
-      command: node.command || '',
-      agentType: node.agentType || 'zsh',
-      title: node.title,
-      cwd: node.cwd,
-      profile,
-      cols: term.cols,
-      rows: term.rows
-    }).then(() => {
-      // Connect WebSocket
-      const ws = createTerminalWebSocket(node.id);
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        // Send initial resize
-        ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          if (msg.type === 'output') {
-            term.write(msg.data);
-          } else if (msg.type === 'history') {
-            term.write(msg.data);
-          } else if (msg.type === 'status') {
-            setStatus(msg.status);
-            onUpdate?.({ id: node.id, status: msg.status });
-          }
-        } catch {
-          term.write(event.data);
-        }
-      };
-
-      term.onData((data) => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'input', data }));
-        }
-      });
+    term.onData((data) => {
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: 'input', data }));
+      }
     });
+
+    // Connect WebSocket & verify PTY session
+    connectWebSocket();
 
     const handleResize = () => {
       if (fitAddonRef.current && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
@@ -368,11 +428,11 @@ export default function TerminalNode({
             <span className="hidden sm:inline">Handoff</span>
           </button>
 
-          {/* Clear screen */}
+          {/* Refresh & Reconnect Terminal Session */}
           <button 
-            onClick={handleClear}
-            className="p-1.5 rounded hover:bg-[rgba(241,233,221,0.1)] text-[#8B7E72] hover:text-[#CDC2B3] transition" 
-            title="Clear Terminal"
+            onClick={handleRefreshSession}
+            className="p-1.5 rounded hover:bg-[rgba(241,233,221,0.1)] text-[#10B981]/90 hover:text-[#10B981] transition" 
+            title="Refresh & Reconnect Session (recovers after sleep / VPN change)"
           >
             <RotateCcw size={13} />
           </button>

@@ -132,3 +132,26 @@ export function createTerminalWebSocket(terminalId) {
   const wsUrl = `${protocol}//${host}/ws/terminal/${encodeURIComponent(terminalId)}`;
   return new WebSocket(wsUrl);
 }
+
+export async function fetchQuotaAlarm() {
+  const res = await fetch(`${BASE_URL}/api/quota-alarm`);
+  return res.json();
+}
+
+export async function saveQuotaAlarm(settings) {
+  const res = await fetch(`${BASE_URL}/api/quota-alarm`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ settings })
+  });
+  return res.json();
+}
+
+export async function triggerQuotaPingNow(providers) {
+  const res = await fetch(`${BASE_URL}/api/quota-alarm/trigger`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ providers })
+  });
+  return res.json();
+}

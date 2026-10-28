@@ -118,8 +118,13 @@ export default function Minimap({
     if (node.type === 'terminal') {
       if (node.agentType === 'claude') return '#D97706';
       if (node.agentType === 'codex') return '#10B981';
-      return '#FF8038';
+      if (node.agentType === 'gemini') return '#3B82F6';
+      if (node.agentType === 'opencode') return '#8B5CF6';
+      if (node.agentType === 'kimi') return '#06B6D4';
+      if (node.agentType === 'deepcode') return '#EC4899';
+      return node.data?.color || '#FF8038';
     }
+    if (node.type === 'group') return node.data?.color || '#A855F7';
     if (node.type === 'webtile') return '#3B82F6';
     if (node.type === 'kanban') return '#F59E0B';
     if (node.type === 'notes') return '#8B5CF6';

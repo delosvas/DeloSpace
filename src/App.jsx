@@ -3,24 +3,27 @@ import Navbar from './components/Navbar';
 import Canvas from './components/Canvas';
 import MissionMapDrawer from './components/MissionMapDrawer';
 import MemoryDrawer from './components/MemoryDrawer';
-import UsageDrawer from './components/UsageDrawer';
 import ComposerModal from './components/ComposerModal';
 import HandoffModal from './components/HandoffModal';
 import LoopModal from './components/LoopModal';
 import CodeStudioModal from './components/CodeStudioModal';
 import FolderSelectModal from './components/FolderSelectModal';
+import QuotaAlarmModal from './components/QuotaAlarmModal';
+import AgentConfigModal, { getStoredAgentTerminals } from './components/AgentConfigModal';
 import { fetchWorkspaces, saveWorkspaces, fetchAgents, broadcastInput, killTerminal } from './services/api';
 
 export default function App() {
   const [workspaces, setWorkspaces] = useState([]);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState(null);
   const [installedAgents, setInstalledAgents] = useState([]);
+  const [agentTerminals, setAgentTerminals] = useState(getStoredAgentTerminals);
 
   // Modals & Drawers
   const [showComposer, setShowComposer] = useState(false);
   const [showMissionMap, setShowMissionMap] = useState(false);
   const [showMemory, setShowMemory] = useState(false);
-  const [showUsage, setShowUsage] = useState(false);
+  const [showQuotaAlarm, setShowQuotaAlarm] = useState(false);
+  const [showAgentConfig, setShowAgentConfig] = useState(false);
   const [showLoops, setShowLoops] = useState(false);
   const [showCodeStudio, setShowCodeStudio] = useState(false);
   const [showFolderSelector, setShowFolderSelector] = useState(false);
@@ -109,6 +112,42 @@ export default function App() {
                   y: nodeUpdate.y !== undefined ? nodeUpdate.y : n.y,
                   width: nodeUpdate.width !== undefined ? nodeUpdate.width : n.width,
                   height: nodeUpdate.height !== undefined ? nodeUpdate.height : n.height
+                };
+              }
+              return n;
+            })
+          };
+        }
+        return w;
+      });
+
+      workspacesRef.current = updated;
+      return updated;
+    });
+
+    scheduleSave(1000);
+  };
+
+  // Update multiple nodes in a single atomic update (essential for moving Subspace groups)
+  const handleUpdateNodesBatch = (updates) => {
+    if (!Array.isArray(updates) || updates.length === 0) return;
+    const updateMap = new Map(updates.map(u => [u.id, u]));
+
+    setWorkspaces(prev => {
+      const updated = prev.map(w => {
+        if (w.id === activeWorkspaceId) {
+          return {
+            ...w,
+            nodes: w.nodes.map(n => {
+              const u = updateMap.get(n.id);
+              if (u) {
+                return {
+                  ...n,
+                  ...u,
+                  x: u.x !== undefined ? u.x : n.x,
+                  y: u.y !== undefined ? u.y : n.y,
+                  width: u.width !== undefined ? u.width : n.width,
+                  height: u.height !== undefined ? u.height : n.height
                 };
               }
               return n;
@@ -261,6 +300,9 @@ export default function App() {
     } else if (type === 'vault') {
       defaultWidth = 760;
       defaultHeight = 520;
+    } else if (type === 'group') {
+      defaultWidth = 860;
+      defaultHeight = 600;
     }
 
     const newNode = {
@@ -271,12 +313,13 @@ export default function App() {
       command: meta.command !== undefined ? meta.command : '',
       cwd: activeWorkspace?.cwd || '',
       profile: 'default',
-      x,
-      y,
-      width: defaultWidth,
-      height: defaultHeight,
+      x: meta.x !== undefined ? meta.x : x,
+      y: meta.y !== undefined ? meta.y : y,
+      width: meta.width || defaultWidth,
+      height: meta.height || defaultHeight,
       status: 'idle',
-      data: meta.data || {}
+      data: meta.data || {},
+      stickyNotes: meta.stickyNotes || []
     };
 
     setWorkspaces(prev => {
@@ -293,6 +336,18 @@ export default function App() {
       clearTimeout(saveTimerRef.current);
       saveWorkspaces(updated);
       return updated;
+    });
+  };
+
+  const handleAddSubspace = () => {
+    const groupCount = (activeWorkspace?.nodes || []).filter(n => n.type === 'group').length + 1;
+    handleAddNode('group', {
+      title: `Subspace ${groupCount}`,
+      data: {
+        color: '#A855F7',
+        collapsed: false,
+        memberNodeIds: []
+      }
     });
   };
 
@@ -446,7 +501,9 @@ export default function App() {
         onOpenComposer={() => setShowComposer(true)}
         onToggleMissionMap={() => setShowMissionMap(!showMissionMap)}
         onToggleMemory={() => setShowMemory(!showMemory)}
-        onToggleUsage={() => setShowUsage(!showUsage)}
+        onAddSubspace={handleAddSubspace}
+        onOpenQuotaAlarm={() => setShowQuotaAlarm(true)}
+        onOpenAgentConfig={() => setShowAgentConfig(true)}
         onOpenLoops={() => setShowLoops(true)}
         onToggleDrawing={() => setIsDrawingActive(!isDrawingActive)}
         onOpenCodeStudio={() => setShowCodeStudio(true)}
@@ -456,6 +513,7 @@ export default function App() {
         activeLoopsCount={activeLoops.length}
         needsInputCount={needsInputCount}
         installedAgents={installedAgents}
+        agentTerminals={agentTerminals}
       />
 
       {/* Main Canvas Workspace */}
@@ -466,6 +524,7 @@ export default function App() {
             workspace={activeWorkspace}
             onCloseNode={handleCloseNode}
             onUpdateNode={handleUpdateNode}
+            onUpdateNodesBatch={handleUpdateNodesBatch}
             onUpdateCanvas={handleUpdateCanvas}
             onUpdateStrokes={handleUpdateStrokes}
             onHandoff={(sourceNode) => setHandoffSourceNode(sourceNode)}
@@ -473,6 +532,9 @@ export default function App() {
             onClearFocus={() => setFocusedNodeId(null)}
             isDrawingActive={isDrawingActive}
             onCloseDrawing={() => setIsDrawingActive(false)}
+            onAddSubspace={handleAddSubspace}
+            onAddNode={handleAddNode}
+            onOpenQuotaAlarm={() => setShowQuotaAlarm(true)}
           />
         ) : (
           <div className="flex items-center justify-center h-full text-[#8B7E72] font-mono text-sm">
@@ -495,13 +557,6 @@ export default function App() {
         <MemoryDrawer 
           isOpen={showMemory}
           onClose={() => setShowMemory(false)}
-          terminals={terminals}
-        />
-
-        {/* Token & Usage Analytics Drawer */}
-        <UsageDrawer
-          isOpen={showUsage}
-          onClose={() => setShowUsage(false)}
           terminals={terminals}
         />
       </main>
@@ -550,6 +605,19 @@ export default function App() {
         onClose={() => setShowFolderSelector(false)}
         currentCwd={activeWorkspace?.cwd || ''}
         onSelectCwd={handleSelectWorkspaceCwd}
+      />
+
+      {/* Quota Alarm / Resetter Modal */}
+      <QuotaAlarmModal
+        isOpen={showQuotaAlarm}
+        onClose={() => setShowQuotaAlarm(false)}
+      />
+
+      {/* Agent Terminals Configuration Modal */}
+      <AgentConfigModal
+        isOpen={showAgentConfig}
+        onClose={() => setShowAgentConfig(false)}
+        onAgentsUpdated={(updated) => setAgentTerminals(updated)}
       />
     </div>
   );

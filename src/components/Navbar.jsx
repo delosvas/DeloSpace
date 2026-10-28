@@ -19,9 +19,11 @@ import {
   Network,
   Infinity as InfinityIcon,
   PenTool,
-  BarChart2,
+  AlarmClock,
+  SlidersHorizontal,
   X
 } from 'lucide-react';
+import { getStoredAgentTerminals } from './AgentConfigModal';
 
 export default function Navbar({
   workspaces = [],
@@ -33,7 +35,9 @@ export default function Navbar({
   onOpenComposer,
   onToggleMissionMap,
   onToggleMemory,
-  onToggleUsage,
+  onAddSubspace,
+  onOpenQuotaAlarm,
+  onOpenAgentConfig,
   onOpenLoops,
   onToggleDrawing,
   onOpenCodeStudio,
@@ -42,7 +46,8 @@ export default function Navbar({
   isDrawingActive = false,
   activeLoopsCount = 0,
   needsInputCount = 0,
-  installedAgents = []
+  installedAgents = [],
+  agentTerminals = null
 }) {
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showStudiosMenu, setShowStudiosMenu] = useState(false);
@@ -127,87 +132,96 @@ export default function Navbar({
             <ChevronDown size={12} className={`transition ${showAddMenu ? 'rotate-180' : ''}`} />
           </button>
 
-          {showAddMenu && (
-            <div className="absolute top-full mt-1.5 left-0 w-64 sym-glass rounded-xl p-1.5 border border-[rgba(241,233,221,0.14)] shadow-2xl z-50 window-no-drag">
-              <div className="px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider text-[#8B7E72]">
-                Agent Terminals (Native macOS PTY)
-              </div>
-              <button
-                onClick={() => { onAddNode('terminal', { agentType: 'claude', title: 'Claude Code', command: 'claude' }); setShowAddMenu(false); }}
-                className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-[#1F1A16] flex items-center gap-2 text-[12px] text-[#F1E9DD]"
-              >
-                <span className="w-2 h-2 rounded-full bg-[#D97706]" />
-                <span className="font-medium">Claude Code</span>
-                <span className="text-[10px] text-[#8B7E72] ml-auto">Anthropic</span>
-              </button>
-              <button
-                onClick={() => { onAddNode('terminal', { agentType: 'codex', title: 'OpenAI Codex', command: 'codex' }); setShowAddMenu(false); }}
-                className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-[#1F1A16] flex items-center gap-2 text-[12px] text-[#F1E9DD]"
-              >
-                <span className="w-2 h-2 rounded-full bg-[#10B981]" />
-                <span className="font-medium">OpenAI Codex</span>
-                <span className="text-[10px] text-[#8B7E72] ml-auto">OpenAI</span>
-              </button>
-              <button
-                onClick={() => { onAddNode('terminal', { agentType: 'gemini', title: 'Gemini CLI', command: 'gemini' }); setShowAddMenu(false); }}
-                className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-[#1F1A16] flex items-center gap-2 text-[12px] text-[#F1E9DD]"
-              >
-                <span className="w-2 h-2 rounded-full bg-[#3B82F6]" />
-                <span className="font-medium">Gemini CLI</span>
-                <span className="text-[10px] text-[#8B7E72] ml-auto">Google</span>
-              </button>
-              <button
-                onClick={() => { onAddNode('terminal', { agentType: 'opencode', title: 'OpenCode', command: 'opencode' }); setShowAddMenu(false); }}
-                className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-[#1F1A16] flex items-center gap-2 text-[12px] text-[#F1E9DD]"
-              >
-                <span className="w-2 h-2 rounded-full bg-[#8B5CF6]" />
-                <span className="font-medium">OpenCode</span>
-                <span className="text-[10px] text-[#8B7E72] ml-auto">Community</span>
-              </button>
-              <button
-                onClick={() => { onAddNode('terminal', { agentType: 'zsh', title: 'macOS Shell', command: '' }); setShowAddMenu(false); }}
-                className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-[#1F1A16] flex items-center gap-2 text-[12px] text-[#F1E9DD]"
-              >
-                <span className="w-2 h-2 rounded-full bg-[#FF8038]" />
-                <span className="font-medium">Direct zsh Shell</span>
-                <span className="text-[10px] text-[#8B7E72] ml-auto">Native PTY</span>
-              </button>
+          {showAddMenu && (() => {
+            const currentAgents = (agentTerminals || getStoredAgentTerminals()).filter(a => a.visible !== false);
+            return (
+              <div className="absolute top-full mt-1.5 left-0 w-64 sym-glass rounded-xl p-1.5 border border-[rgba(241,233,221,0.14)] shadow-2xl z-50 window-no-drag">
+                <div className="flex items-center justify-between px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider text-[#8B7E72]">
+                  <span>Agent Terminals (PTY)</span>
+                  <button
+                    onClick={() => { onOpenAgentConfig?.(); setShowAddMenu(false); }}
+                    className="hover:text-[#FF8038] flex items-center gap-1 normal-case tracking-normal transition"
+                    title="Edit dropdown visibility, order, and add custom agents"
+                  >
+                    <SlidersHorizontal size={11} />
+                    <span>Edit</span>
+                  </button>
+                </div>
 
-              <div className="my-1 border-t border-[rgba(241,233,221,0.06)]" />
+                {currentAgents.map(agent => (
+                  <button
+                    key={agent.id}
+                    onClick={() => {
+                      onAddNode('terminal', {
+                        agentType: agent.id,
+                        title: agent.name,
+                        command: agent.command,
+                        data: { color: agent.color }
+                      });
+                      setShowAddMenu(false);
+                    }}
+                    className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-[#1F1A16] flex items-center gap-2 text-[12px] text-[#F1E9DD]"
+                  >
+                    <span 
+                      className="w-2 h-2 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: agent.color || '#FF8038' }}
+                    />
+                    <span className="font-medium truncate">{agent.name}</span>
+                    <span className="text-[10px] text-[#8B7E72] ml-auto truncate max-w-[80px]">{agent.provider}</span>
+                  </button>
+                ))}
 
-              <div className="px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider text-[#8B7E72]">
-                Workspace Tiles
+                <button
+                  onClick={() => { onOpenAgentConfig?.(); setShowAddMenu(false); }}
+                  className="w-full mt-1 px-2.5 py-1 rounded-lg border border-dashed border-[rgba(241,233,221,0.1)] hover:border-[#FF8038]/40 hover:bg-[#1F1A16] flex items-center justify-center gap-1.5 text-[11px] text-[#8B7E72] hover:text-[#FF8038] transition"
+                >
+                  <Plus size={12} />
+                  <span>Customize & Add Agents…</span>
+                </button>
+
+                <div className="my-1 border-t border-[rgba(241,233,221,0.06)]" />
+
+                <div className="px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider text-[#8B7E72]">
+                  Workspace Tiles
+                </div>
+                <button
+                  onClick={() => { onAddSubspace?.(); setShowAddMenu(false); }}
+                  className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-[#1F1A16] flex items-center gap-2 text-[12px] text-[#F1E9DD]"
+                >
+                  <LayoutGrid size={14} className="text-[#A855F7]" />
+                  <span>Subspace Group Container</span>
+                </button>
+                <button
+                  onClick={() => { onAddNode('webtile', { title: 'Local Preview' }); setShowAddMenu(false); }}
+                  className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-[#1F1A16] flex items-center gap-2 text-[12px] text-[#F1E9DD]"
+                >
+                  <Globe size={14} className="text-[#3B82F6]" />
+                  <span>Live Web Tile (localhost)</span>
+                </button>
+                <button
+                  onClick={() => { onAddNode('kanban', { title: 'Sprint Board' }); setShowAddMenu(false); }}
+                  className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-[#1F1A16] flex items-center gap-2 text-[12px] text-[#F1E9DD]"
+                >
+                  <Columns3 size={14} className="text-[#F59E0B]" />
+                  <span>Kanban Board</span>
+                </button>
+                <button
+                  onClick={() => { onAddNode('notes', { title: 'Project Notes' }); setShowAddMenu(false); }}
+                  className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-[#1F1A16] flex items-center gap-2 text-[12px] text-[#F1E9DD]"
+                >
+                  <FileText size={14} className="text-[#8B5CF6]" />
+                  <span>Markdown & Checklists</span>
+                </button>
+                <button
+                  onClick={() => { onAddNode('git', { title: 'Git Status' }); setShowAddMenu(false); }}
+                  className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-[#1F1A16] flex items-center gap-2 text-[12px] text-[#F1E9DD]"
+                >
+                  <GitBranch size={14} className="text-[#EF4444]" />
+                  <span>Git Status & Commits</span>
+                </button>
               </div>
-              <button
-                onClick={() => { onAddNode('webtile', { title: 'Local Preview' }); setShowAddMenu(false); }}
-                className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-[#1F1A16] flex items-center gap-2 text-[12px] text-[#F1E9DD]"
-              >
-                <Globe size={14} className="text-[#3B82F6]" />
-                <span>Live Web Tile (localhost)</span>
-              </button>
-              <button
-                onClick={() => { onAddNode('kanban', { title: 'Sprint Board' }); setShowAddMenu(false); }}
-                className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-[#1F1A16] flex items-center gap-2 text-[12px] text-[#F1E9DD]"
-              >
-                <Columns3 size={14} className="text-[#F59E0B]" />
-                <span>Kanban Board</span>
-              </button>
-              <button
-                onClick={() => { onAddNode('notes', { title: 'Project Notes' }); setShowAddMenu(false); }}
-                className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-[#1F1A16] flex items-center gap-2 text-[12px] text-[#F1E9DD]"
-              >
-                <FileText size={14} className="text-[#8B5CF6]" />
-                <span>Markdown & Checklists</span>
-              </button>
-              <button
-                onClick={() => { onAddNode('git', { title: 'Git Status' }); setShowAddMenu(false); }}
-                className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-[#1F1A16] flex items-center gap-2 text-[12px] text-[#F1E9DD]"
-              >
-                <GitBranch size={14} className="text-[#EF4444]" />
-                <span>Git Status & Commits</span>
-              </button>
-            </div>
-          )}
+            );
+          })()}
         </div>
 
         {/* 4 Studios Dropdown */}
@@ -368,14 +382,24 @@ export default function Navbar({
           <span className="hidden lg:inline">Composer</span>
         </button>
 
-        {/* Token & Usage Analytics */}
+        {/* Subspace Group Container */}
         <button
-          onClick={onToggleUsage}
+          onClick={onAddSubspace}
           className="sym-btn-ghost px-2.5 py-1.5 rounded-lg text-[13px] flex items-center gap-1.5"
-          title="Token & Usage Analytics"
+          title="Create Subspace Group (organize & move nodes together like desktop icons)"
         >
-          <BarChart2 size={14} className="text-emerald-400" />
-          <span className="hidden lg:inline">Usage</span>
+          <LayoutGrid size={14} className="text-[#A855F7]" />
+          <span className="hidden lg:inline">Subspace</span>
+        </button>
+
+        {/* Quota Alarm / Resetter */}
+        <button
+          onClick={onOpenQuotaAlarm}
+          className="sym-btn-ghost px-2.5 py-1.5 rounded-lg text-[13px] flex items-center gap-1.5"
+          title="Quota Alarm / Usage Resetter (5h warmup pings)"
+        >
+          <AlarmClock size={14} className="text-[#10B981]" />
+          <span className="hidden lg:inline">Quota Alarm</span>
         </button>
 
         {/* Project Memory Drawer Toggle */}
