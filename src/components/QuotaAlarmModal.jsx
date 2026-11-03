@@ -14,7 +14,7 @@ import { fetchQuotaAlarm, saveQuotaAlarm, triggerQuotaPingNow } from '../service
 
 const AVAILABLE_PROVIDERS = [
   { id: 'claude', name: 'Claude Code', desc: 'Anthropic 5h rolling window (Haiku warmup)', color: '#FF8038' },
-  { id: 'codex', name: 'Codex / OpenAI', desc: 'OpenAI rate limit reset window (gpt-4o-mini)', color: '#10B981' },
+  { id: 'codex', name: 'Codex / OpenAI', desc: 'OpenAI rate limit reset window (codex exec)', color: '#10B981' },
   { id: 'gemini', name: 'Gemini CLI', desc: 'Google Gemini quota window (Flash warmup)', color: '#3B82F6' },
   { id: 'kimi', name: 'Kimi CLI', desc: 'Moonshot AI rolling reset window', color: '#06B6D4' },
   { id: 'deepcode', name: 'DeepCode CLI', desc: 'DeepCode rate limit window', color: '#EC4899' },
@@ -109,10 +109,10 @@ export default function QuotaAlarmModal({ isOpen, onClose }) {
     try {
       const res = await triggerQuotaPingNow(settings.providers);
       if (res.success) {
-        setFeedbackMsg({ 
-          type: 'success', 
-          text: `Warmup ping sent! Reset timer initiated for ${settings.providers.join(', ')}.` 
-        });
+        const failed = res.result?.results?.filter(r => !r.success) || [];
+        setFeedbackMsg(failed.length
+          ? { type: 'error', text: `Ping failed for ${failed.map(r => `${r.provider} (${r.error})`).join('; ')}` }
+          : { type: 'success', text: `Warmup ping sent! Reset timer initiated for ${settings.providers.join(', ')}.` });
         loadData();
       } else {
         setFeedbackMsg({ type: 'error', text: 'Warmup trigger failed.' });
@@ -310,7 +310,13 @@ export default function QuotaAlarmModal({ isOpen, onClose }) {
                 {settings.history.slice(0, 5).map((h, i) => (
                   <div key={i} className="text-[11px] p-2 rounded-lg bg-[#14110E] border border-[rgba(241,233,221,0.06)] flex items-center justify-between font-mono text-[#CDC2B3]">
                     <span>{new Date(h.timestamp).toLocaleString()}</span>
-                    <span className="text-emerald-400">Pings sent ({h.results?.length || 0})</span>
+                    {h.status === 'success' ? (
+                      <span className="text-emerald-400">Pings OK ({h.results?.length || 0})</span>
+                    ) : (
+                      <span className="text-rose-400" title={h.results?.filter(r => !r.success).map(r => `${r.provider}: ${r.error}`).join('\n')}>
+                        Failed: {h.results?.filter(r => !r.success).map(r => r.provider).join(', ')}
+                      </span>
+                    )}
                   </div>
                 ))}
               </div>

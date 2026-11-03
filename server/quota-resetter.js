@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import pty from 'node-pty';
+import { execFile } from 'child_process';
 
 const DELO_DIR = path.join(os.homedir(), '.delospace');
 const CONFIG_FILE = path.join(DELO_DIR, 'quota-alarm.json');
@@ -17,8 +17,16 @@ const DEFAULT_SETTINGS = {
   repeat: 'daily', // 'once' | 'daily'
   providers: ['claude', 'codex'],
   lastTriggered: null,
+  lastAlarmDate: null, // local YYYY-MM-DD of the last scheduled occurrence handled
   history: []
 };
+
+// A tick delayed by App Nap / a locked screen still fires if it lands within this window
+const LATE_GRACE_MS = 60 * 60 * 1000;
+const PING_TIMEOUT_MS = 3 * 60 * 1000;
+
+const localDateKey = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 class QuotaResetter {
   constructor() {
@@ -72,15 +80,11 @@ class QuotaResetter {
    */
   async triggerWarmup(providersOverride = null) {
     const providers = providersOverride || this.settings.providers || ['claude'];
-    const results = [];
     const timestamp = new Date().toISOString();
 
     console.log(`[QuotaResetter] Initiating warmup ping for: ${providers.join(', ')}`);
 
-    for (const provider of providers) {
-      const res = await this.pingProvider(provider);
-      results.push({ provider, ...res });
-    }
+    const results = await Promise.all(providers.map(p => this.pingProvider(p)));
 
     const logEntry = {
       timestamp,
@@ -98,93 +102,76 @@ class QuotaResetter {
   }
 
   pingProvider(provider) {
+    // Plain prompts, no 2>/dev/null: failures must show up in history
+    const commands = {
+      claude: `claude -p "hi" --model haiku`,
+      codex: `codex exec --skip-git-repo-check "hi"`,
+      openai: `codex exec --skip-git-repo-check "hi"`,
+      gemini: `gemini -p "hi"`,
+      kimi: `kimi --prompt "hi" || kimi "hi"`,
+      deepcode: `deepcode "hi" || deepcode check`,
+      aider: `aider --message "hi" --model haiku --no-git --yes-always`
+    };
+    const cmd = commands[provider] || `echo "ping ${provider}"`;
+    const shell = process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash';
+
     return new Promise((resolve) => {
-      const shell = process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash';
-      let cmd = '';
-
-      switch (provider) {
-        case 'claude':
-          // Ping claude with a cheap prompt to haiku model to initiate the 5-hour rolling timer
-          cmd = `claude -p "hi (dont answer)" --model claude-3-5-haiku-20241022 || claude -p "hi" 2>/dev/null\n`;
-          break;
-        case 'codex':
-        case 'openai':
-          // Ping codex or openai CLI
-          cmd = `codex "hi" 2>/dev/null || openai api chat.completions.create -m gpt-4o-mini -g user "hi" 2>/dev/null\n`;
-          break;
-        case 'gemini':
-          cmd = `gemini "hi" 2>/dev/null\n`;
-          break;
-        case 'kimi':
-          cmd = `kimi --prompt "hi" 2>/dev/null || kimi "hi" 2>/dev/null\n`;
-          break;
-        case 'deepcode':
-          cmd = `deepcode "hi" 2>/dev/null || deepcode check 2>/dev/null\n`;
-          break;
-        case 'aider':
-          cmd = `aider --message "hi" --model haiku --no-git 2>/dev/null\n`;
-          break;
-        default:
-          cmd = `echo "ping ${provider}"\n`;
-      }
-
-      try {
-        const ptyProc = pty.spawn(shell, ['-l'], {
-          name: 'xterm-256color',
-          cols: 80,
-          rows: 24,
-          cwd: process.cwd(),
-          env: process.env
-        });
-
-        let output = '';
-        ptyProc.onData((data) => {
-          output += data;
-        });
-
-        // Send command after short spawn pause
-        setTimeout(() => {
-          try {
-            ptyProc.write(cmd);
-          } catch (_) {}
-        }, 300);
-
-        // Allow 3.5 seconds to establish connection and register API usage, then terminate
-        setTimeout(() => {
-          try {
-            ptyProc.kill('SIGKILL');
-          } catch (_) {}
-          resolve({ success: true, message: `Ping sent to ${provider}` });
-        }, 3500);
-
-      } catch (err) {
-        resolve({ success: false, error: err.message });
-      }
+      // -lic loads the user's PATH even when the app was launched from Finder; wait for the CLI to finish
+      const child = execFile(shell, ['-lic', cmd], {
+        cwd: os.tmpdir(),
+        env: process.env,
+        timeout: PING_TIMEOUT_MS,
+        killSignal: 'SIGKILL',
+        maxBuffer: 4 * 1024 * 1024
+      }, (err, stdout, stderr) => {
+        const tail = `${stdout}\n${stderr}`.trim().split('\n').slice(-4).join('\n').slice(-500);
+        if (err) {
+          const why = err.killed ? `timed out after ${PING_TIMEOUT_MS / 1000}s` : `exit ${err.code}`;
+          console.warn(`[QuotaResetter] ${provider} ping failed (${why}):`, tail);
+          resolve({ provider, success: false, error: `${why}: ${tail}` });
+        } else {
+          resolve({ provider, success: true, message: `Ping sent to ${provider}` });
+        }
+      });
+      child.stdin?.end();
     });
+  }
+
+  /**
+   * Fires once per day for the most recent warmup occurrence if it's due and
+   * at most LATE_GRACE_MS overdue, so throttled/late ticks don't skip the day.
+   */
+  checkDue(now = new Date()) {
+    if (!this.settings.enabled) return false;
+    const due = this.lastOccurrence(now);
+    if (now - due > LATE_GRACE_MS) return false;
+    if (this.settings.lastAlarmDate === localDateKey(due)) return false;
+
+    // Mark before the async pings so the next tick can't double-fire
+    this.save({ lastAlarmDate: localDateKey(due), ...(this.settings.repeat === 'once' ? { enabled: false } : {}) });
+    this.triggerWarmup();
+    return true;
+  }
+
+  /** User-facing settings update; occurrences already past count as handled so saving never fires instantly. */
+  saveUserSettings(input) {
+    const { enabled, targetTime, leadHours, repeat, providers } = input;
+    this.save({ enabled, targetTime, leadHours, repeat, providers });
+    return this.save({ lastAlarmDate: localDateKey(this.lastOccurrence()) });
+  }
+
+  /** Most recent warmup time at or before `now`. */
+  lastOccurrence(now = new Date()) {
+    const [wH, wM] = this.getWarmupTime().split(':').map(Number);
+    const due = new Date(now);
+    due.setHours(wH, wM, 0, 0);
+    if (due > now) due.setDate(due.getDate() - 1);
+    return due;
   }
 
   startWatcher() {
     if (this.interval) clearInterval(this.interval);
-
-    this.interval = setInterval(() => {
-      if (!this.settings.enabled) return;
-
-      const now = new Date();
-      const currentHHMM = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      const warmupTime = this.getWarmupTime();
-
-      if (currentHHMM === warmupTime) {
-        // Prevent firing multiple times in the same minute
-        const last = this.settings.lastTriggered ? new Date(this.settings.lastTriggered) : null;
-        if (!last || (now.getTime() - last.getTime() > 90000)) {
-          this.triggerWarmup();
-
-          if (this.settings.repeat === 'once') {
-            this.save({ enabled: false });
-          }
-        }
-      }
-    }, 25000); // Check every 25 seconds
+    this.interval = setInterval(() => this.checkDue(), 20000);
   }
 }
 

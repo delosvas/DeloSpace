@@ -38,7 +38,10 @@
         "dir",
         "dmg"
       ],
-      "identity": null
+      "identity": null,
+      "extendInfo": {
+        "LSAppNapIsDisabled": true
+      }
     },
     "asar": true,
     "asarUnpack": [

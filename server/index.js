@@ -114,7 +114,7 @@ app.post('/api/quota-alarm', (req, res) => {
   if (!settings) {
     return res.status(400).json({ error: 'Settings object required' });
   }
-  const updated = quotaResetter.save(settings);
+  const updated = quotaResetter.saveUserSettings(settings);
   res.json({ success: true, settings: updated, warmupTime: quotaResetter.getWarmupTime() });
 });
 
