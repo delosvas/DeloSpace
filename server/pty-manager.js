@@ -4,6 +4,9 @@ import path from 'path';
 import fs from 'fs';
 
 const __dirname = path.dirname(new URL(import.meta.url).pathname);
+// Holds the `delo` command chats use to talk to each other; the shell can't run files inside app.asar.
+const BIN_DIR = path.join(__dirname, 'bin').replace(`app.asar${path.sep}`, `app.asar.unpacked${path.sep}`);
+try { fs.chmodSync(path.join(BIN_DIR, 'delo'), 0o755); } catch {}
 
 // Ensure spawn-helper permissions on macOS
 function ensureSpawnHelper() {
@@ -45,7 +48,14 @@ class PtyManager {
     }
 
     const cwd = options.cwd || process.cwd();
-    const env = { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' };
+    const env = {
+      ...process.env,
+      TERM: 'xterm-256color',
+      COLORTERM: 'truecolor',
+      PATH: `${BIN_DIR}${path.delimiter}${process.env.PATH || ''}`,
+      DELO_NODE_ID: id,
+      DELO_URL: `http://127.0.0.1:${process.env.PORT || 3001}`
+    };
 
     // Apply profile isolation if specified
     if (options.profile && options.profile !== 'default') {
@@ -77,6 +87,8 @@ class PtyManager {
     const session = {
       id,
       ptyProcess,
+      shellName: path.basename(shell),
+      bracketedPaste: false,
       history: [],
       maxHistory: 500,
       status: 'idle', // 'idle' | 'working' | 'needs_input'
@@ -93,6 +105,10 @@ class PtyManager {
     };
 
     ptyProcess.onData((data) => {
+      // Track whether the running app accepts bracketed paste (so sendPrompt can paste multi-line text safely)
+      const pasteOn = data.lastIndexOf('\x1b[?2004h'), pasteOff = data.lastIndexOf('\x1b[?2004l');
+      if (pasteOn !== pasteOff) session.bracketedPaste = pasteOn > pasteOff;
+
       // Store in history
       session.history.push(data);
       if (session.history.length > session.maxHistory) {
@@ -200,6 +216,30 @@ class PtyManager {
     return false;
   }
 
+  // True when something other than the bare shell (e.g. claude, codex) is in the foreground,
+  // so typed text goes to an agent instead of being run as shell commands.
+  isAgentRunning(id) {
+    const session = this.sessions.get(id);
+    const fg = session?.ptyProcess.process;
+    return !!fg && fg !== session.shellName;
+  }
+
+  // Types a whole prompt into an agent chat and presses Enter. Queued per chat so two
+  // prompts arriving together don't get pasted into one message.
+  sendPrompt(id, text) {
+    const session = this.sessions.get(id);
+    if (!session) return false;
+    const p = session.ptyProcess;
+    session.promptQueue = (session.promptQueue || Promise.resolve()).then(() => new Promise(done => {
+      try {
+        // Without bracketed paste each newline would submit early, so fall back to one line.
+        p.write(session.bracketedPaste ? `\x1b[200~${text}\x1b[201~` : text.replace(/\r?\n/g, ' '));
+      } catch { return done(); }
+      setTimeout(() => { try { p.write('\r'); } catch {} done(); }, 150);
+    }));
+    return true;
+  }
+
   resize(id, cols, rows) {
     const session = this.sessions.get(id);
     if (session && session.ptyProcess) {
@@ -229,7 +269,13 @@ class PtyManager {
     const session = this.sessions.get(id);
     if (!session) return '';
     const full = session.history.join('');
-    const clean = full.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
+    const clean = full
+      .replace(/\x1b\[(\d*)C/g, (_, n) => ' '.repeat(Number(n) || 1)) // TUIs move the cursor right instead of printing spaces
+      .replace(/\x1b\[[0-?]*[ -\/]*[@-~]/g, '')                       // other CSI sequences (colors, cursor, modes)
+      .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, '')             // OSC (window titles, links)
+      .replace(/\x1b[()][0-9A-Za-z]|\x1b[=>78DEHMc]/g, '')
+      .replace(/\r+(?!\n)/g, '\n')
+      .replace(/[\x00-\x08\x0b-\x1f\x7f]/g, '');
     const lines = clean.split('\n');
     return lines.slice(-maxLines).join('\n');
   }

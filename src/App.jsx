@@ -10,7 +10,7 @@ import CodeStudioModal from './components/CodeStudioModal';
 import FolderSelectModal from './components/FolderSelectModal';
 import QuotaAlarmModal from './components/QuotaAlarmModal';
 import AgentConfigModal, { getStoredAgentTerminals } from './components/AgentConfigModal';
-import { fetchWorkspaces, saveWorkspaces, fetchAgents, broadcastInput, killTerminal } from './services/api';
+import { fetchWorkspaces, saveWorkspaces, fetchAgents, broadcastInput, killTerminal, briefManager } from './services/api';
 
 export default function App() {
   const [workspaces, setWorkspaces] = useState([]);
@@ -84,6 +84,7 @@ export default function App() {
             nodes: w.nodes
               .filter(n => n.id !== nodeId)
               .map(n => (isGroup && n.groupId === nodeId) ? { ...n, groupId: null, snapSlot: null } : n)
+              .map(n => n.managerId === nodeId ? { ...n, managerId: null } : n)
           };
         }
         return w;
@@ -130,6 +131,23 @@ export default function App() {
     });
 
     scheduleSave(1000);
+  };
+
+  // Make workerId a worker of managerId (null disconnects). Resolves to an error message or null.
+  const handleSetManager = async (workerId, managerId) => {
+    const updated = workspacesRef.current.map(w => w.id !== activeWorkspaceId ? w : {
+      ...w,
+      nodes: w.nodes.map(n => n.id === workerId ? { ...n, managerId } : n)
+    });
+    workspacesRef.current = updated;
+    setWorkspaces(updated);
+    clearTimeout(saveTimerRef.current);
+    try {
+      await saveWorkspaces(updated); // the server reads the team from the saved board
+      return managerId ? await briefManager(managerId, workerId) : null;
+    } catch (err) {
+      return err.message;
+    }
   };
 
   // Update multiple nodes in a single atomic update (essential for moving Subspace groups)
@@ -546,6 +564,7 @@ export default function App() {
             onAddSubspace={handleAddSubspace}
             onAddNode={handleAddNode}
             onOpenQuotaAlarm={() => setShowQuotaAlarm(true)}
+            onSetManager={handleSetManager}
           />
         ) : (
           <div className="flex items-center justify-center h-full text-[#8B7E72] font-mono text-sm">

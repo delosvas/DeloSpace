@@ -72,6 +72,16 @@ export async function broadcastPrompt(terminalIds, prompt) {
 
 export const broadcastInput = broadcastPrompt;
 
+// Tells a manager chat about its new worker. Resolves to an error message, or null when briefed.
+export async function briefManager(managerId, workerId) {
+  const res = await fetch(`${BASE_URL}/api/orchestra/brief`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ managerId, workerId })
+  });
+  return res.ok ? null : res.text();
+}
+
 export async function fetchGitStatus(cwd) {
   const url = cwd ? `${BASE_URL}/api/git/status?cwd=${encodeURIComponent(cwd)}` : `${BASE_URL}/api/git/status`;
   const res = await fetch(url);

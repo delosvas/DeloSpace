@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { ZoomIn, ZoomOut, Maximize, RotateCcw } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize, RotateCcw, Network } from 'lucide-react';
+import TeamLines from './TeamLines';
 import TerminalNode from './nodes/TerminalNode';
 import WebTileNode from './nodes/WebTileNode';
 import KanbanNode from './nodes/KanbanNode';
@@ -137,7 +138,8 @@ export default function Canvas({
   onCloseDrawing,
   onAddSubspace,
   onAddNode,
-  onOpenQuotaAlarm
+  onOpenQuotaAlarm,
+  onSetManager
 }) {
   const containerRef = useRef(null);
   const [panX, setPanX] = useState(workspace.canvas?.panX || 0);
@@ -154,6 +156,41 @@ export default function Canvas({
   const [resizeStart, setResizeStart] = useState({ w: 0, h: 0, mouseX: 0, mouseY: 0 });
 
   const [maximizedNodeId, setMaximizedNodeId] = useState(null);
+
+  // Manager/worker wiring: while set, clicking another agent chat makes it a worker of this node
+  const [connectFromId, setConnectFromId] = useState(null);
+  const [teamNotice, setTeamNotice] = useState(null);
+  const connectFrom = workspace.nodes.find(n => n.id === connectFromId);
+
+  useEffect(() => {
+    if (!connectFromId) return;
+    const onKey = (e) => e.key === 'Escape' && setConnectFromId(null);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [connectFromId]);
+
+  useEffect(() => {
+    if (!teamNotice) return;
+    const t = setTimeout(() => setTeamNotice(null), 6000);
+    return () => clearTimeout(t);
+  }, [teamNotice]);
+
+  const isAgentNode = (n) => n?.type === 'terminal' && n.agentType && n.agentType !== 'zsh';
+
+  // A chat can't become a worker of its own (indirect) worker, so messages only ever flow down a tree
+  const canBeWorkerOf = (workerId, managerId) => {
+    const seen = new Set();
+    for (let id = managerId; id && !seen.has(id); id = workspace.nodes.find(n => n.id === id)?.managerId) {
+      if (id === workerId) return false;
+      seen.add(id);
+    }
+    return true;
+  };
+
+  const handleSetManager = async (workerId, managerId) => {
+    const error = await onSetManager?.(workerId, managerId);
+    if (error) setTeamNotice(managerId ? `Connected, but the manager wasn't briefed: ${error}` : `Couldn't disconnect: ${error}`);
+  };
 
   // Live ghost snap preview for Fitted Subspaces
   const [snapPreview, setSnapPreview] = useState(null);
@@ -228,6 +265,7 @@ export default function Canvas({
   const handleMouseDown = (e) => {
     if (maximizedNodeId || isDrawingActive) return;
     if (e.target === containerRef.current || e.target.classList.contains('canvas-bg')) {
+      setConnectFromId(null);
       setIsPanning(true);
       setPanStart({ x: e.clientX - panX, y: e.clientY - panY });
     }
@@ -793,6 +831,99 @@ export default function Canvas({
     }
   };
 
+  const renderCanvasNode = (node) => {
+    const isMax = maximizedNodeId === node.id;
+    if (isMax) return null; // rendered in fullscreen overlay below
+
+    const isConnectTarget = connectFromId && connectFromId !== node.id;
+    const canConnect = isConnectTarget && isAgentNode(node) && canBeWorkerOf(node.id, connectFromId);
+    const workerCount = workspace.nodes.filter(n => n.managerId === node.id).length;
+    // In connect mode a click on another chat picks it as a worker instead of reaching the chat
+    const pickWorker = (e) => {
+      if (!isConnectTarget) return;
+      e.preventDefault();
+      e.stopPropagation();
+      // Clicking an existing worker again re-sends the briefing (e.g. after the manager chat restarted)
+      if (e.type === 'mousedown' && canConnect) handleSetManager(node.id, connectFromId);
+    };
+
+    return (
+      <div
+        key={node.id}
+        data-node-id={node.id}
+        style={{
+          transform: `translate(${node.x}px, ${node.y}px)`,
+          width: `${node.width}px`,
+          height: `${node.height}px`
+        }}
+        onContextMenu={(e) => handleNodeContextMenu(node.id, e)}
+        onMouseDownCapture={pickWorker}
+        onClickCapture={pickWorker}
+        className={`canvas-node absolute pointer-events-auto group transition-shadow duration-200 ${
+          canConnect ? 'cursor-crosshair rounded-xl ring-2 ring-[#FF8038]/70 shadow-[0_0_30px_rgba(255,128,56,0.35)]' : isConnectTarget ? 'cursor-not-allowed' : ''
+        }`}
+      >
+        {/* Drag handle header overlay */}
+        <div 
+          onMouseDown={(e) => handleNodeDragStart(node.id, e)}
+          className="absolute top-0 left-0 right-28 h-8 cursor-grab active:cursor-grabbing z-20"
+          title="Drag to reposition node"
+        />
+
+        {/* Node Content */}
+        {renderNodeComponent(node, false)}
+
+        {/* Attached Sticky Notes */}
+        {node.stickyNotes?.map(note => (
+          <StickyNote
+            key={note.id}
+            note={note}
+            nodeId={node.id}
+            nodeWidth={node.width}
+            nodeHeight={node.height}
+            zoom={zoom}
+            onUpdateText={handleUpdateStickyText}
+            onUpdatePosition={handleUpdateStickyPosition}
+            onUpdateDimensions={handleUpdateStickyDimensions}
+            onUpdateFontSize={handleUpdateStickyFontSize}
+            onChangeColor={handleChangeStickyColor}
+            onDelete={handleDeleteSticky}
+            onContextMenu={handleStickyContextMenu}
+          />
+        ))}
+
+        {/* Manager port: click, then click the chats this one should manage */}
+        {isAgentNode(node) && (
+          <button
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={() => setConnectFromId(connectFromId === node.id ? null : node.id)}
+            className={`absolute -right-3 top-1/2 -translate-y-1/2 z-20 h-6 min-w-6 px-1 rounded-full border flex items-center justify-center gap-0.5 text-[10px] font-semibold transition ${
+              connectFromId === node.id
+                ? 'bg-[#FF8038] border-[#FF8038] text-[#14110E] opacity-100'
+                : `bg-[#14110E] border-[#FF8038]/50 text-[#FF8038] hover:bg-[#FF8038]/20 ${workerCount ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`
+            }`}
+            title={workerCount ? `Manages ${workerCount} chat${workerCount > 1 ? 's' : ''}. Click to add workers.` : 'Make this chat a manager: click, then click the chats it should direct'}
+            aria-label="Connect workers to this chat"
+          >
+            <Network size={12} />
+            {workerCount > 0 && <span>{workerCount}</span>}
+          </button>
+        )}
+
+        {/* Resize Handle on bottom right (disabled if docked in Fitted Subspace) */}
+        {(!node.groupId || !node.snapSlot) && (
+          <div 
+            onMouseDown={(e) => handleNodeResizeStart(node.id, e)}
+            className="absolute -bottom-1 -right-1 w-4 h-4 cursor-se-resize z-20 flex items-center justify-center opacity-40 group-hover:opacity-100 transition"
+            title="Drag to resize"
+          >
+            <div className="w-2 h-2 border-r-2 border-b-2 border-[#FF8038]" />
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div 
       ref={containerRef}
@@ -855,70 +986,23 @@ export default function Canvas({
           </div>
         )}
 
-        {/* Render group nodes first so they appear below individual cards */}
-        {[...workspace.nodes].sort((a, b) => {
-          if (a.type === 'group' && b.type !== 'group') return -1;
-          if (a.type !== 'group' && b.type === 'group') return 1;
-          return 0;
-        }).map(node => {
-          const isMax = maximizedNodeId === node.id;
-          if (isMax) return null; // rendered in fullscreen overlay below
-
-          return (
-            <div
-              key={node.id}
-              data-node-id={node.id}
-              style={{
-                transform: `translate(${node.x}px, ${node.y}px)`,
-                width: `${node.width}px`,
-                height: `${node.height}px`
-              }}
-              onContextMenu={(e) => handleNodeContextMenu(node.id, e)}
-              className="canvas-node absolute pointer-events-auto group transition-shadow duration-200"
-            >
-              {/* Drag handle header overlay */}
-              <div 
-                onMouseDown={(e) => handleNodeDragStart(node.id, e)}
-                className="absolute top-0 left-0 right-28 h-8 cursor-grab active:cursor-grabbing z-20"
-                title="Drag to reposition node"
-              />
-
-              {/* Node Content */}
-              {renderNodeComponent(node, false)}
-
-              {/* Attached Sticky Notes */}
-              {node.stickyNotes?.map(note => (
-                <StickyNote
-                  key={note.id}
-                  note={note}
-                  nodeId={node.id}
-                  nodeWidth={node.width}
-                  nodeHeight={node.height}
-                  zoom={zoom}
-                  onUpdateText={handleUpdateStickyText}
-                  onUpdatePosition={handleUpdateStickyPosition}
-                  onUpdateDimensions={handleUpdateStickyDimensions}
-                  onUpdateFontSize={handleUpdateStickyFontSize}
-                  onChangeColor={handleChangeStickyColor}
-                  onDelete={handleDeleteSticky}
-                  onContextMenu={handleStickyContextMenu}
-                />
-              ))}
-
-              {/* Resize Handle on bottom right (disabled if docked in Fitted Subspace) */}
-              {(!node.groupId || !node.snapSlot) && (
-                <div 
-                  onMouseDown={(e) => handleNodeResizeStart(node.id, e)}
-                  className="absolute -bottom-1 -right-1 w-4 h-4 cursor-se-resize z-20 flex items-center justify-center opacity-40 group-hover:opacity-100 transition"
-                  title="Drag to resize"
-                >
-                  <div className="w-2 h-2 border-r-2 border-b-2 border-[#FF8038]" />
-                </div>
-              )}
-            </div>
-          );
-        })}
+        {/* Subspaces first, then team lines, then cards on top */}
+        {workspace.nodes.filter(n => n.type === 'group').map(renderCanvasNode)}
+        <TeamLines nodes={workspace.nodes} onDisconnect={(workerId) => handleSetManager(workerId, null)} />
+        {workspace.nodes.filter(n => n.type !== 'group').map(renderCanvasNode)}
       </div>
+
+      {/* Manager/worker connect banner and notices */}
+      {(connectFrom || teamNotice) && (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-xl sym-glass border border-[#FF8038]/40 text-[12px] text-[#F1E9DD] shadow-2xl flex items-center gap-2 max-w-[90%]">
+          <Network size={14} className="text-[#FF8038] shrink-0" />
+          <span>
+            {connectFrom
+              ? <>Click the chats <b>{connectFrom.title}</b> should manage. Press Esc or click empty canvas when done.</>
+              : teamNotice}
+          </span>
+        </div>
+      )}
 
       {/* Maximized Node Overlay */}
       {maximizedNodeId && (() => {

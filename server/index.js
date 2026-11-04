@@ -16,6 +16,7 @@ import { getAgentCatalog } from './agent-catalog.js';
 import { getGitStatus } from './git-service.js';
 import { loadWorkspaces, saveWorkspaces, loadProjectMemory, saveProjectMemory } from './storage.js';
 import { quotaResetter } from './quota-resetter.js';
+import * as orchestra from './orchestra.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -89,6 +90,20 @@ app.get('/api/terminals/active', (req, res) => {
   const active = ptyManager.getAllSessions();
   res.json({ success: true, sessions: active });
 });
+
+// Manager/worker chats, called by the `delo` command inside each chat (plain-text in and out)
+const orchestraRoute = (fn) => (req, res) => {
+  try {
+    res.type('text').send(fn(req));
+  } catch (err) {
+    res.status(err.expose ? 400 : 500).type('text').send(err.message);
+  }
+};
+app.get('/api/orchestra/list', orchestraRoute(req => orchestra.list(req.query.from)));
+app.get('/api/orchestra/read', orchestraRoute(req => orchestra.read(req.query.from, req.query.to, req.query.lines)));
+app.post('/api/orchestra/send', express.text(), orchestraRoute(req => orchestra.send(req.query.from, req.query.to, req.body)));
+app.post('/api/orchestra/report', express.text(), orchestraRoute(req => orchestra.report(req.query.from, req.body)));
+app.post('/api/orchestra/brief', orchestraRoute(req => (orchestra.brief(req.body.managerId, req.body.workerId), 'ok')));
 
 // Multi-Agent Broadcast Composer
 app.post('/api/broadcast', (req, res) => {
@@ -310,7 +325,8 @@ wss.on('connection', (ws, request, terminalId) => {
 });
 
 const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => {
+// Only this computer: the API can type into every chat.
+server.listen(PORT, '127.0.0.1', () => {
   console.log(`[Symvibe Server] running at http://localhost:${PORT}`);
   console.log(`[Symvibe Server] PTY ready for macOS native agents on zsh`);
 });
