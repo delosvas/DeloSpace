@@ -45,7 +45,8 @@
     },
     "asar": true,
     "asarUnpack": [
-      "node_modules/node-pty/**/*"
+      "node_modules/node-pty/**/*",
+      "server/bin/**/*"
     ]
   },
   "keywords": [],

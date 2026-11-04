@@ -1,0 +1,19 @@
+#!/bin/sh
+# delo: lets a DeloSpace chat talk to its manager or workers through the local DeloSpace server.
+# A missing message is read from stdin, so long text can come from a heredoc.
+usage='usage: delo list | delo send <worker> "<task>" | delo read <worker> [lines] | delo report "<summary>"'
+[ -n "$DELO_URL" ] || { echo "delo: not running inside a DeloSpace chat (restart this chat to enable it)" >&2; exit 1; }
+u="$DELO_URL/api/orchestra"
+q() { curl -sS --fail-with-body --url-query "from=$DELO_NODE_ID" "$@"; }
+case "$1" in
+  list)   q "$u/list" ;;
+  read)   [ -n "$2" ] || { echo "$usage" >&2; exit 2; }
+          q --url-query "to=$2" --url-query "lines=${3:-60}" "$u/read" ;;
+  send)   [ -n "$2" ] || { echo "$usage" >&2; exit 2; }
+          if [ $# -ge 3 ]; then m="$3"; else m="$(cat)"; fi
+          printf '%s' "$m" | q -H 'Content-Type: text/plain' --data-binary @- --url-query "to=$2" "$u/send" ;;
+  report) if [ $# -ge 2 ]; then m="$2"; else m="$(cat)"; fi
+          printf '%s' "$m" | q -H 'Content-Type: text/plain' --data-binary @- "$u/report" ;;
+  *)      echo "$usage" >&2; exit 2 ;;
+esac
+s=$?; echo; exit $s
