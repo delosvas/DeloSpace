@@ -1,7 +1,6 @@
 import express from 'express';
 import http from 'http';
 import { WebSocketServer } from 'ws';
-import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
@@ -25,7 +24,12 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
 
-app.use(cors());
+// Only this computer's own pages and tools may use the API: it can type into every chat.
+// Host stops DNS rebinding; Origin stops other websites open in the browser. Tools like `delo` send no Origin.
+const LOCAL = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
+const isLocal = ({ headers: { host = '', origin } }) =>
+  LOCAL.test(host) && (!origin || LOCAL.test(origin.replace(/^https?:\/\//, '')));
+app.use((req, res, next) => isLocal(req) ? next() : res.status(403).send('Forbidden'));
 app.use(express.json());
 
 // --- REST Endpoints ---
@@ -288,6 +292,7 @@ if (fs.existsSync(distDir)) {
 
 // --- WebSocket Upgrade Handling ---
 server.on('upgrade', (request, socket, head) => {
+  if (!isLocal(request)) return socket.destroy();
   const url = new URL(request.url, `http://${request.headers.host}`);
   const match = url.pathname.match(/^\/ws\/terminal\/(.+)$/);
 
